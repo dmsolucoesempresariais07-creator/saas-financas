@@ -88,6 +88,16 @@ export default function DashboardPage() {
               Gerenciar contas a pagar
             </button>
           </div>
+          <div className="bg-white rounded-xl border border-gray-200 p-6">
+  <h3 className="text-lg font-semibold text-gray-800 mb-4">DRE</h3>
+  <p className="text-sm text-gray-400">Demonstrativo de Resultado do Exercicio.</p>
+  <button
+    onClick={() => router.push('/dashboard/dre')}
+    className="mt-4 text-sm text-blue-600 hover:underline"
+  >
+    Ver DRE
+  </button>
+</div>
         </div>
       </div>
     </div>

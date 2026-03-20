@@ -234,12 +234,13 @@ export default function ContasPagarPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Categoria</label>
                 <select value={form.categoria} onChange={e => setForm({...form, categoria: e.target.value})} className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm">
                   <option value="">Selecione</option>
-                  <option value="Aluguel">Aluguel</option>
-                  <option value="Salarios">Salarios</option>
-                  <option value="Fornecedor">Fornecedor</option>
-                  <option value="Impostos">Impostos</option>
-                  <option value="Servicos">Servicos</option>
-                  <option value="Outros">Outros</option>
+                  <option value="Custos Variaveis">Custos Variaveis</option>
+                  <option value="Despesas com Ocupacao">Despesas com Ocupacao</option>
+                  <option value="Despesas com Servicos">Despesas com Servicos</option>
+                  <option value="Despesas com Pessoal">Despesas com Pessoal</option>
+                  <option value="Outras Despesas">Outras Despesas</option>
+                  <option value="Resultado Financeiro">Resultado Financeiro</option>
+                  <option value="Impostos Diretos">Impostos Diretos</option>
                 </select>
               </div>
               <div>

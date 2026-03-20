@@ -234,11 +234,9 @@ export default function ContasReceberPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Categoria</label>
                 <select value={form.categoria} onChange={e => setForm({...form, categoria: e.target.value})} className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm">
                   <option value="">Selecione</option>
-                  <option value="Servico">Servico</option>
-                  <option value="Produto">Produto</option>
-                  <option value="Consultoria">Consultoria</option>
-                  <option value="Manutencao">Manutencao</option>
-                  <option value="Outros">Outros</option>
+                  <option value="Receita com Produtos">Receita com Produtos</option>
+                  <option value="Receita com Servicos">Receita com Servicos</option>
+                  <option value="Outras Receitas">Outras Receitas</option>
                 </select>
               </div>
               <div>
