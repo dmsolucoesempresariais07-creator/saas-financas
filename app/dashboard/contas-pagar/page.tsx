@@ -21,6 +21,7 @@ export default function ContasPagarPage() {
     centro_custo: '',
     numero_nota: '',
     observacao: '',
+    forma_pagamento: '',
     recorrente: false,
     parcelado: false,
     total_parcelas: '1',
@@ -250,10 +251,21 @@ export default function ContasPagarPage() {
                 <input type="text" value={form.numero_nota} onChange={e => setForm({...form, numero_nota: e.target.value})} className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm" placeholder="Ex: NF-001" />
               </div>
               <div>
+  <label className="block text-sm font-medium text-gray-700 mb-1">Forma de pagamento</label>
+  <select value={form.forma_pagamento} onChange={e => setForm({...form, forma_pagamento: e.target.value})} className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm">
+    <option value="">Selecione</option>
+    <option value="Dinheiro">Dinheiro</option>
+    <option value="PIX">PIX</option>
+    <option value="Boleto">Boleto</option>
+    <option value="Cartao de Credito">Cartao de Credito</option>
+    <option value="Cartao de Debito">Cartao de Debito</option>
+    <option value="Transferencia Bancaria">Transferencia Bancaria</option>
+  </select>
+</div>
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Observacao</label>
                 <input type="text" value={form.observacao} onChange={e => setForm({...form, observacao: e.target.value})} className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm" placeholder="Observacoes adicionais" />
               </div>
-
               <div className="md:col-span-2 border border-gray-200 rounded-lg p-4 bg-gray-50">
                 <p className="text-sm font-medium text-gray-700 mb-3">Tipo de lancamento</p>
                 <div className="flex flex-wrap gap-6">
