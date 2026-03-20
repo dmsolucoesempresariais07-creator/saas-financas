@@ -21,6 +21,9 @@ export default function ContasReceberPage() {
     centro_custo: '',
     numero_nota: '',
     observacao: '',
+    recorrente: false,
+    parcelado: false,
+    total_parcelas: '1',
   })
   const router = useRouter()
 
@@ -29,10 +32,11 @@ export default function ContasReceberPage() {
   }, [])
 
   const carregarContas = async () => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('contas_receber')
       .select('*')
       .order('data_vencimento', { ascending: true })
+    if (error) alert('Erro ao carregar: ' + error.message)
     setContas(data || [])
     setLoading(false)
   }
@@ -40,15 +44,47 @@ export default function ContasReceberPage() {
   const adicionarConta = async (e: React.FormEvent) => {
     e.preventDefault()
     setSalvando(true)
-    const { error } = await supabase.from('contas_receber').insert({
-      ...form,
-      valor: parseFloat(form.valor),
-    })
-    if (!error) {
-      setForm({ descricao: '', valor: '', data_vencimento: '', cliente: '', categoria: '', centro_custo: '', numero_nota: '', observacao: '' })
-      setMostrarForm(false)
-      carregarContas()
+
+    const grupoId = crypto.randomUUID()
+    const totalParcelas = form.parcelado ? parseInt(form.total_parcelas) : 1
+    const registros = []
+
+    for (let i = 0; i < totalParcelas; i++) {
+      const dataBase = new Date(form.data_vencimento + 'T00:00:00')
+      dataBase.setMonth(dataBase.getMonth() + i)
+      const dataVenc = dataBase.toISOString().split('T')[0]
+
+      registros.push({
+        descricao: form.parcelado
+          ? `${form.descricao} (Parcela ${i + 1}/${totalParcelas})`
+          : form.descricao,
+        valor: parseFloat(form.valor),
+        data_vencimento: dataVenc,
+        cliente: form.cliente,
+        categoria: form.categoria,
+        centro_custo: form.centro_custo,
+        numero_nota: form.numero_nota,
+        observacao: form.observacao,
+        recorrente: form.recorrente,
+        parcelado: form.parcelado,
+        total_parcelas: totalParcelas,
+        parcela_atual: i + 1,
+        grupo_id: grupoId,
+        status: 'pendente',
+      })
     }
+
+    const { error } = await supabase.from('contas_receber').insert(registros)
+
+    if (error) {
+      alert('Erro ao salvar: ' + error.message)
+      setSalvando(false)
+      return
+    }
+
+    setForm({ descricao: '', valor: '', data_vencimento: '', cliente: '', categoria: '', centro_custo: '', numero_nota: '', observacao: '', recorrente: false, parcelado: false, total_parcelas: '1' })
+    setMostrarForm(false)
+    carregarContas()
     setSalvando(false)
   }
 
@@ -67,7 +103,34 @@ export default function ContasReceberPage() {
     }
   }
 
+  const gerarProximoMes = async (conta: any) => {
+    const dataAtual = new Date(conta.data_vencimento + 'T00:00:00')
+    dataAtual.setMonth(dataAtual.getMonth() + 1)
+    const novaData = dataAtual.toISOString().split('T')[0]
+
+    const { error } = await supabase.from('contas_receber').insert({
+      descricao: conta.descricao,
+      valor: conta.valor,
+      data_vencimento: novaData,
+      cliente: conta.cliente,
+      categoria: conta.categoria,
+      centro_custo: conta.centro_custo,
+      numero_nota: conta.numero_nota,
+      observacao: conta.observacao,
+      recorrente: true,
+      parcelado: false,
+      total_parcelas: 1,
+      parcela_atual: 1,
+      grupo_id: conta.grupo_id,
+      status: 'pendente',
+    })
+
+    if (error) alert('Erro: ' + error.message)
+    else carregarContas()
+  }
+
   const exportarExcel = () => {
+    if (contasFiltradas.length === 0) { alert('Nenhuma conta para exportar.'); return }
     const linhas = contasFiltradas.map(c => ({
       Descricao: c.descricao,
       Cliente: c.cliente || '',
@@ -77,6 +140,7 @@ export default function ContasReceberPage() {
       'Valor (R$)': parseFloat(c.valor).toFixed(2),
       Vencimento: new Date(c.data_vencimento).toLocaleDateString('pt-BR'),
       Status: c.status,
+      Tipo: c.recorrente ? 'Recorrente' : c.parcelado ? `Parcelado ${c.parcela_atual}/${c.total_parcelas}` : 'Normal',
     }))
     const csv = [Object.keys(linhas[0]).join(';'), ...linhas.map(l => Object.values(l).join(';'))].join('\n')
     const blob = new Blob([csv], { type: 'text/csv' })
@@ -151,10 +215,10 @@ export default function ContasReceberPage() {
             <form onSubmit={adicionarConta} className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Descricao *</label>
-                <input type="text" value={form.descricao} onChange={e => setForm({...form, descricao: e.target.value})} className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm" placeholder="Ex: Servico de consultoria" required />
+                <input type="text" value={form.descricao} onChange={e => setForm({...form, descricao: e.target.value})} className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm" placeholder="Ex: Servico prestado" required />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Cliente *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Cliente</label>
                 <input type="text" value={form.cliente} onChange={e => setForm({...form, cliente: e.target.value})} className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm" placeholder="Nome do cliente" />
               </div>
               <div>
@@ -162,7 +226,7 @@ export default function ContasReceberPage() {
                 <input type="number" step="0.01" value={form.valor} onChange={e => setForm({...form, valor: e.target.value})} className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm" placeholder="0,00" required />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Vencimento *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Data primeiro vencimento *</label>
                 <input type="date" value={form.data_vencimento} onChange={e => setForm({...form, data_vencimento: e.target.value})} className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm" required />
               </div>
               <div>
@@ -188,9 +252,34 @@ export default function ContasReceberPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Observacao</label>
                 <input type="text" value={form.observacao} onChange={e => setForm({...form, observacao: e.target.value})} className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm" placeholder="Observacoes adicionais" />
               </div>
+
+              <div className="md:col-span-2 border border-gray-200 rounded-lg p-4 bg-gray-50">
+                <p className="text-sm font-medium text-gray-700 mb-3">Tipo de lancamento</p>
+                <div className="flex flex-wrap gap-6">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={form.recorrente} onChange={e => setForm({...form, recorrente: e.target.checked, parcelado: false})} className="w-4 h-4" />
+                    <span className="text-sm text-gray-700">Recorrente (repete todo mes automaticamente)</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={form.parcelado} onChange={e => setForm({...form, parcelado: e.target.checked, recorrente: false})} className="w-4 h-4" />
+                    <span className="text-sm text-gray-700">Parcelado</span>
+                  </label>
+                </div>
+                {form.parcelado && (
+                  <div className="mt-3">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Numero de parcelas</label>
+                    <input type="number" min="2" max="60" value={form.total_parcelas} onChange={e => setForm({...form, total_parcelas: e.target.value})} className="w-32 border border-gray-300 rounded-lg px-4 py-2 text-sm" />
+                    <p className="text-xs text-gray-400 mt-1">As parcelas serao lancadas automaticamente nos proximos meses</p>
+                  </div>
+                )}
+                {form.recorrente && (
+                  <p className="text-xs text-gray-400 mt-2">Um novo lancamento sera criado automaticamente todo mes na mesma data</p>
+                )}
+              </div>
+
               <div className="md:col-span-2 flex gap-3">
                 <button type="submit" disabled={salvando} className="bg-blue-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
-                  {salvando ? 'Salvando...' : 'Salvar conta'}
+                  {salvando ? 'Salvando...' : form.parcelado ? `Gerar ${form.total_parcelas} parcelas` : 'Salvar conta'}
                 </button>
                 <button type="button" onClick={() => setMostrarForm(false)} className="border border-gray-300 px-6 py-2 rounded-lg text-sm hover:bg-gray-50">
                   Cancelar
@@ -227,9 +316,9 @@ export default function ContasReceberPage() {
                 <th className="text-left px-4 py-3 text-gray-600 font-medium">Descricao</th>
                 <th className="text-left px-4 py-3 text-gray-600 font-medium">Cliente</th>
                 <th className="text-left px-4 py-3 text-gray-600 font-medium">Categoria</th>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium">NF</th>
                 <th className="text-left px-4 py-3 text-gray-600 font-medium">Valor</th>
                 <th className="text-left px-4 py-3 text-gray-600 font-medium">Vencimento</th>
+                <th className="text-left px-4 py-3 text-gray-600 font-medium">Tipo</th>
                 <th className="text-left px-4 py-3 text-gray-600 font-medium">Status</th>
                 <th className="text-left px-4 py-3 text-gray-600 font-medium">Acoes</th>
               </tr>
@@ -245,9 +334,13 @@ export default function ContasReceberPage() {
                     <td className="px-4 py-3 text-gray-800">{conta.descricao}</td>
                     <td className="px-4 py-3 text-gray-600">{conta.cliente || '-'}</td>
                     <td className="px-4 py-3 text-gray-600">{conta.categoria || '-'}</td>
-                    <td className="px-4 py-3 text-gray-600">{conta.numero_nota || '-'}</td>
                     <td className="px-4 py-3 font-medium text-gray-800">R$ {parseFloat(conta.valor).toFixed(2)}</td>
                     <td className="px-4 py-3 text-gray-600">{new Date(conta.data_vencimento).toLocaleDateString('pt-BR')}</td>
+                    <td className="px-4 py-3">
+                      {conta.recorrente && <span className="px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-700">Recorrente</span>}
+                      {conta.parcelado && <span className="px-2 py-1 rounded-full text-xs bg-purple-100 text-purple-700">{conta.parcela_atual}/{conta.total_parcelas}</span>}
+                      {!conta.recorrente && !conta.parcelado && <span className="text-gray-400 text-xs">Normal</span>}
+                    </td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                         conta.status === 'recebido' ? 'bg-green-100 text-green-700' :
@@ -258,9 +351,12 @@ export default function ContasReceberPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex gap-2">
+                      <div className="flex flex-col gap-1">
                         {conta.status !== 'recebido' && (
-                          <button onClick={() => marcarStatus(conta.id, 'recebido')} className="text-green-600 hover:underline text-xs">Recebido</button>
+                          <button onClick={() => marcarStatus(conta.id, 'recebido')} className="text-green-600 hover:underline text-xs">Marcar recebido</button>
+                        )}
+                        {conta.recorrente && conta.status === 'recebido' && (
+                          <button onClick={() => gerarProximoMes(conta)} className="text-blue-600 hover:underline text-xs">Gerar proximo mes</button>
                         )}
                         <button onClick={() => excluir(conta.id)} className="text-red-500 hover:underline text-xs">Excluir</button>
                       </div>
