@@ -66,6 +66,7 @@ export default function ContasReceberPage() {
         centro_custo: form.centro_custo,
         numero_nota: form.numero_nota,
         observacao: form.observacao,
+        forma_pagamento: form.forma_pagamento,
         recorrente: form.recorrente,
         parcelado: form.parcelado,
         total_parcelas: totalParcelas,
@@ -83,7 +84,7 @@ export default function ContasReceberPage() {
       return
     }
 
-    setForm({ descricao: '', valor: '', data_vencimento: '', cliente: '', categoria: '', centro_custo: '', numero_nota: '', observacao: '', recorrente: false, parcelado: false, total_parcelas: '1' })
+    setForm({ descricao: '', valor: '', data_vencimento: '', cliente: '', categoria: '', centro_custo: '', numero_nota: '', observacao: '', forma_pagamento: '', recorrente: false, parcelado: false, total_parcelas: '1' })
     setMostrarForm(false)
     carregarContas()
     setSalvando(false)
@@ -97,11 +98,21 @@ export default function ContasReceberPage() {
     carregarContas()
   }
 
-  const excluir = async (id: string) => {
-    if (confirm('Deseja excluir esta conta?')) {
-      await supabase.from('contas_receber').delete().eq('id', id)
-      carregarContas()
+  const excluir = async (conta: any) => {
+    if (conta.parcelado && conta.grupo_id) {
+      const confirmar = confirm(`Esta e uma conta parcelada (${conta.parcela_atual}/${conta.total_parcelas}).\n\nDeseja excluir TODAS as parcelas?\n\nOK = Excluir todas\nCancelar = Excluir apenas esta`)
+      if (confirmar) {
+        await supabase.from('contas_receber').delete().eq('grupo_id', conta.grupo_id)
+      } else {
+        const confirmarUma = confirm('Deseja excluir apenas esta parcela?')
+        if (confirmarUma) await supabase.from('contas_receber').delete().eq('id', conta.id)
+      }
+    } else {
+      if (confirm('Deseja excluir esta conta?')) {
+        await supabase.from('contas_receber').delete().eq('id', conta.id)
+      }
     }
+    carregarContas()
   }
 
   const gerarProximoMes = async (conta: any) => {
@@ -118,6 +129,7 @@ export default function ContasReceberPage() {
       centro_custo: conta.centro_custo,
       numero_nota: conta.numero_nota,
       observacao: conta.observacao,
+      forma_pagamento: conta.forma_pagamento,
       recorrente: true,
       parcelado: false,
       total_parcelas: 1,
@@ -138,6 +150,7 @@ export default function ContasReceberPage() {
       Categoria: c.categoria || '',
       'Centro de Custo': c.centro_custo || '',
       'Nota Fiscal': c.numero_nota || '',
+      'Forma de Pagamento': c.forma_pagamento || '',
       'Valor (R$)': parseFloat(c.valor).toFixed(2),
       Vencimento: new Date(c.data_vencimento).toLocaleDateString('pt-BR'),
       Status: c.status,
@@ -240,6 +253,18 @@ export default function ContasReceberPage() {
                 </select>
               </div>
               <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Forma de pagamento</label>
+                <select value={form.forma_pagamento} onChange={e => setForm({...form, forma_pagamento: e.target.value})} className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm">
+                  <option value="">Selecione</option>
+                  <option value="Dinheiro">Dinheiro</option>
+                  <option value="PIX">PIX</option>
+                  <option value="Boleto">Boleto</option>
+                  <option value="Cartao de Credito">Cartao de Credito</option>
+                  <option value="Cartao de Debito">Cartao de Debito</option>
+                  <option value="Transferencia Bancaria">Transferencia Bancaria</option>
+                </select>
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Centro de custo</label>
                 <input type="text" value={form.centro_custo} onChange={e => setForm({...form, centro_custo: e.target.value})} className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm" placeholder="Ex: Comercial" />
               </div>
@@ -251,18 +276,7 @@ export default function ContasReceberPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Observacao</label>
                 <input type="text" value={form.observacao} onChange={e => setForm({...form, observacao: e.target.value})} className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm" placeholder="Observacoes adicionais" />
               </div>
-<div>
-  <label className="block text-sm font-medium text-gray-700 mb-1">Forma de pagamento</label>
-  <select value={form.forma_pagamento} onChange={e => setForm({...form, forma_pagamento: e.target.value})} className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm">
-    <option value="">Selecione</option>
-    <option value="Dinheiro">Dinheiro</option>
-    <option value="PIX">PIX</option>
-    <option value="Boleto">Boleto</option>
-    <option value="Cartao de Credito">Cartao de Credito</option>
-    <option value="Cartao de Debito">Cartao de Debito</option>
-    <option value="Transferencia Bancaria">Transferencia Bancaria</option>
-  </select>
-</div>
+
               <div className="md:col-span-2 border border-gray-200 rounded-lg p-4 bg-gray-50">
                 <p className="text-sm font-medium text-gray-700 mb-3">Tipo de lancamento</p>
                 <div className="flex flex-wrap gap-6">
@@ -362,13 +376,14 @@ export default function ContasReceberPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-col gap-1">
+                        <button onClick={() => router.push(`/dashboard/contas-receber/editar/${conta.id}`)} className="text-blue-600 hover:underline text-xs">Editar</button>
                         {conta.status !== 'recebido' && (
                           <button onClick={() => marcarStatus(conta.id, 'recebido')} className="text-green-600 hover:underline text-xs">Marcar recebido</button>
                         )}
                         {conta.recorrente && conta.status === 'recebido' && (
                           <button onClick={() => gerarProximoMes(conta)} className="text-blue-600 hover:underline text-xs">Gerar proximo mes</button>
                         )}
-                        <button onClick={() => excluir(conta.id)} className="text-red-500 hover:underline text-xs">Excluir</button>
+                        <button onClick={() => excluir(conta)} className="text-red-500 hover:underline text-xs">Excluir</button>
                       </div>
                     </td>
                   </tr>
