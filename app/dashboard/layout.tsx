@@ -73,7 +73,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       )}
 
-      <main className={`md:ml-60 ${onboardingPendente ? '' : 'pt-14 md:pt-0'} pb-20 md:pb-0`}>
+      <main className="md:ml-60 pt-14 md:pt-0 pb-20 md:pb-0 transition-all duration-300">
+  <div className="hidden md:flex items-center justify-between px-6 py-3 bg-white border-b border-gray-200">
+    <nav className="text-xs text-gray-400">Inicio</nav>
+    <p className="text-sm text-gray-600">
+      Bem-vindo, <span className="font-semibold text-gray-800">{nomeEmpresa || 'usuario'}</span>
+    </p>
+  </div>
         {children}
       </main>
     </div>

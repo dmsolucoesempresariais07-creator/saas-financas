@@ -21,7 +21,7 @@ export default function ClientesPage() {
     endereco: '',
     cidade: '',
     estado: '',
-    observacoes: '',
+    observaões: '',
   })
   const router = useRouter()
 

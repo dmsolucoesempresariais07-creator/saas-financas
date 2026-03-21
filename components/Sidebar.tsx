@@ -16,6 +16,7 @@ const icons = {
   suporte: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>,
   sair: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>,
   chevron: <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>,
+  toggle: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>,
 }
 
 const menuItems = [
@@ -38,6 +39,7 @@ export default function Sidebar({ usuario, nomeEmpresa, logoUrl }: { usuario: an
   const pathname = usePathname()
   const [menuAberto, setMenuAberto] = useState(false)
   const [subAberto, setSubAberto] = useState<string | null>(null)
+  const [recolhido, setRecolhido] = useState(false)
 
   const sair = async () => {
     await supabase.auth.signOut()
@@ -66,7 +68,7 @@ export default function Sidebar({ usuario, nomeEmpresa, logoUrl }: { usuario: an
       {logoUrl ? (
         <img src={logoUrl} alt="Logo" className="w-full h-full object-contain p-0.5" />
       ) : (
-        <span>{iniciais}</span>
+        <span className="text-xs">{iniciais}</span>
       )}
     </div>
   )
@@ -78,34 +80,32 @@ export default function Sidebar({ usuario, nomeEmpresa, logoUrl }: { usuario: an
 
     return (
       <div>
-        {item.separador && <div className="mx-4 my-2 border-t border-gray-700" />}
+        {item.separador && !recolhido && <div className="mx-4 my-2 border-t border-gray-700" />}
+        {item.separador && recolhido && <div className="my-2 border-t border-gray-700" />}
         <button
           onClick={() => {
-            if (temSub) {
-              setSubAberto(subEstaAberto ? null : item.href)
-            } else {
-              navegar(item.href)
-            }
+            if (recolhido) { setRecolhido(false); navegar(item.href); return }
+            if (temSub) setSubAberto(subEstaAberto ? null : item.href)
+            else navegar(item.href)
           }}
+          title={recolhido ? item.label : ''}
           className={`flex items-center justify-between w-full px-4 py-2.5 text-sm transition-all duration-150 ${
-            isAtivo
-              ? 'bg-blue-600 text-white'
-              : 'text-gray-300 hover:bg-gray-700 hover:text-white'
-          }`}
+            isAtivo ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+          } ${recolhido ? 'justify-center px-0' : ''}`}
         >
-          <div className="flex items-center gap-3">
+          <div className={`flex items-center gap-3 ${recolhido ? 'justify-center w-full' : ''}`}>
             <span className={isAtivo ? 'text-white' : 'text-gray-400'}>
               {icons[item.icon as keyof typeof icons]}
             </span>
-            <span className="font-medium">{item.label}</span>
+            {!recolhido && <span className="font-medium">{item.label}</span>}
           </div>
-          {temSub && (
+          {temSub && !recolhido && (
             <span className={`transition-transform duration-200 ${subEstaAberto ? 'rotate-180' : ''} ${isAtivo ? 'text-white' : 'text-gray-500'}`}>
               {icons.chevron}
             </span>
           )}
         </button>
-        {temSub && subEstaAberto && (
+        {temSub && subEstaAberto && !recolhido && (
           <div className="bg-gray-900 py-1">
             {item.sub.map((s: any) => (
               <button
@@ -128,30 +128,45 @@ export default function Sidebar({ usuario, nomeEmpresa, logoUrl }: { usuario: an
   return (
     <>
       {/* SIDEBAR DESKTOP */}
-      <aside className="hidden md:flex flex-col w-60 min-h-screen bg-gray-800 text-white fixed left-0 top-0 z-40">
-        <div className="px-4 py-5 bg-gray-900 border-b border-gray-700">
-          <div className="flex items-center gap-3">
-            <LogoAvatar size={9} />
-            <div className="overflow-hidden flex-1">
-              <p className="text-sm font-semibold text-white truncate">{nomeEmpresa || 'DM Solucoes'}</p>
-              <p className="text-xs text-gray-400 truncate">{usuario?.email}</p>
+      <aside className={`hidden md:flex flex-col min-h-screen bg-gray-800 text-white fixed left-0 top-0 z-40 transition-all duration-300 ${recolhido ? 'w-16' : 'w-60'}`}>
+
+        {/* Header */}
+        <div className={`bg-gray-900 border-b border-gray-700 flex items-center ${recolhido ? 'justify-center py-4 px-2' : 'px-4 py-5 justify-between'}`}>
+          {!recolhido && (
+            <div className="flex items-center gap-3 overflow-hidden flex-1">
+              <LogoAvatar size={9} />
+              <div className="overflow-hidden">
+                <p className="text-sm font-semibold text-white truncate">{nomeEmpresa || 'DM Solucoes'}</p>
+                <p className="text-xs text-gray-400 truncate">{usuario?.email}</p>
+              </div>
             </div>
-          </div>
+          )}
+          {recolhido && <LogoAvatar size={8} />}
+          <button
+            onClick={() => setRecolhido(!recolhido)}
+            className={`text-gray-400 hover:text-white p-1.5 rounded-lg hover:bg-gray-700 transition flex-shrink-0 ${recolhido ? 'mt-2' : ''}`}
+            title={recolhido ? 'Expandir menu' : 'Recolher menu'}
+          >
+            {icons.toggle}
+          </button>
         </div>
 
-        <nav className="flex-1 py-2 overflow-y-auto">
+        {/* Nav */}
+        <nav className="flex-1 py-2 overflow-y-auto overflow-x-hidden">
           {menuItems.map(item => (
             <MenuItem key={item.href} item={item} />
           ))}
         </nav>
 
+        {/* Sair */}
         <div className="border-t border-gray-700 p-3">
           <button
             onClick={sair}
-            className="flex items-center gap-3 w-full px-3 py-2.5 text-sm text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition"
+            title={recolhido ? 'Sair' : ''}
+            className={`flex items-center gap-3 w-full py-2.5 text-sm text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition ${recolhido ? 'justify-center px-0' : 'px-3'}`}
           >
             <span>{icons.sair}</span>
-            Sair
+            {!recolhido && 'Sair'}
           </button>
         </div>
       </aside>
@@ -179,10 +194,7 @@ export default function Sidebar({ usuario, nomeEmpresa, logoUrl }: { usuario: an
               <MenuItem key={item.href} item={item} />
             ))}
             <div className="border-t border-gray-700 mx-4 my-2" />
-            <button
-              onClick={sair}
-              className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-gray-400 hover:text-white hover:bg-gray-700"
-            >
+            <button onClick={sair} className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-gray-400 hover:text-white hover:bg-gray-700">
               <span>{icons.sair}</span>
               Sair
             </button>
