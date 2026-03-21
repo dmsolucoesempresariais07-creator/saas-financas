@@ -359,7 +359,7 @@ export default function ContasReceberPage() {
                     <td className="px-4 py-3 text-gray-600">{conta.cliente || '-'}</td>
                     <td className="px-4 py-3 text-gray-600">{conta.categoria || '-'}</td>
                     <td className="px-4 py-3 font-medium text-gray-800">R$ {parseFloat(conta.valor).toFixed(2)}</td>
-                    <td className="px-4 py-3 text-gray-600">{new Date(conta.data_vencimento).toLocaleDateString('pt-BR')}</td>
+                    <td className="px-4 py-3 text-gray-600">{new Date(conta.data_vencimento + 'T00:00:00').toLocaleDateString('pt-BR')}</td>
                     <td className="px-4 py-3">
                       {conta.recorrente && <span className="px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-700">Recorrente</span>}
                       {conta.parcelado && <span className="px-2 py-1 rounded-full text-xs bg-purple-100 text-purple-700">{conta.parcela_atual}/{conta.total_parcelas}</span>}

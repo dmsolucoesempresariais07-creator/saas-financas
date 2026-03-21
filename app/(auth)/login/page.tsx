@@ -25,7 +25,17 @@ export default function LoginPage() {
       setError('E-mail ou senha incorretos')
       setLoading(false)
     } else {
-      router.push('/dashboard')
+      const { data: config } = await supabase
+  .from('configuracoes')
+  .select('onboarding_concluido')
+  .eq('user_id', (await supabase.auth.getUser()).data.user?.id)
+  .single()
+
+if (config?.onboarding_concluido) {
+  router.push('/dashboard')
+} else {
+  router.push('/onboarding')
+}
     }
   }
 
