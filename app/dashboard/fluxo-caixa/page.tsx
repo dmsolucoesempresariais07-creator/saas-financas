@@ -142,7 +142,7 @@ export default function FluxoCaixaPage() {
           <div>
             <label className="block text-xs text-gray-500 mb-1">Ano</label>
             <select value={ano} onChange={e => setAno(parseInt(e.target.value))} className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
-              {[2023, 2024, 2025, 2026, 2027].map(a => <option key={a} value={a}>{a}</option>)}
+              {[2023, 2024, 2025, 2026, 2027, 2028, 2029, 2030, 2031, 2032].map(a => <option key={a} value={a}>{a}</option>)}
             </select>
           </div>
           <div>

@@ -115,8 +115,8 @@ export default function ConfiguracoesPage() {
   return (
     <div className="px-6 py-8">
       <div className="max-w-2xl mx-auto">
-        <h2 className="text-2xl font-bold text-gray-800 mb-1">Configuracoes</h2>
-        <p className="text-sm text-gray-500 mb-8">Gerencie as informacoes da sua empresa</p>
+        <h2 className="text-2xl font-bold text-gray-800 mb-1">Configurações</h2>
+        <p className="text-sm text-gray-500 mb-8">Gerencie as informações da sua empresa</p>
 
         <form onSubmit={salvar} className="space-y-6">
 
@@ -128,7 +128,7 @@ export default function ConfiguracoesPage() {
                 {preview ? (
                   <img src={preview} alt="Logo" className="w-full h-full object-contain" />
                 ) : (
-                  <svg width="28" height="28" fill="none" stroke="#9ca3af" strokeWidth="1.5" viewBox="0 0 24 24">
+                  <svg width="10" height="10" fill="none" stroke="#9ca3af" strokeWidth="1.5" viewBox="0 0 24 24">
                     <rect x="3" y="3" width="18" height="18" rx="2"/>
                     <circle cx="8.5" cy="8.5" r="1.5"/>
                     <polyline points="21 15 16 10 5 21"/>
@@ -232,7 +232,7 @@ export default function ConfiguracoesPage() {
                   onChange={e => setForm({...form, ano_inicio: parseInt(e.target.value)})}
                   className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  {[2023, 2024, 2025, 2026, 2027].map(a => <option key={a} value={a}>{a}</option>)}
+                  {[2023, 2024, 2025, 2026, 2027, 2028, 2029, 2030, 2031, 2032].map(a => <option key={a} value={a}>{a}</option>)}
                 </select>
               </div>
             </div>

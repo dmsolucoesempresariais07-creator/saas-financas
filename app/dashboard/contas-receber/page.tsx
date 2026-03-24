@@ -182,11 +182,13 @@ export default function ContasReceberPage() {
   const totalRecebido = contasFiltradas.filter(c => c.status === 'recebido').reduce((s, c) => s + parseFloat(c.valor), 0)
   const totalGeral = contasFiltradas.reduce((s, c) => s + parseFloat(c.valor), 0)
 
+  const fmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+
   return (
     <div className="min-h-screen bg-gray-50">
       <nav className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
         <button onClick={() => router.push('/dashboard')} className="text-sm text-gray-500 hover:underline">
-          in
+          ← Inicio
         </button>
       </nav>
 
@@ -206,19 +208,19 @@ export default function ContasReceberPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <div className="bg-white rounded-xl border border-gray-200 p-4">
             <p className="text-xs text-gray-500 mb-1">Total geral</p>
-            <p className="text-xl font-bold text-gray-800">R$ {totalGeral.toFixed(2)}</p>
+            <p className="text-xl font-bold text-gray-800">{fmt(totalGeral)}</p>
           </div>
           <div className="bg-yellow-50 rounded-xl border border-yellow-200 p-4">
             <p className="text-xs text-yellow-600 mb-1">Pendente</p>
-            <p className="text-xl font-bold text-yellow-700">R$ {totalPendente.toFixed(2)}</p>
+            <p className="text-xl font-bold text-yellow-700">{fmt(totalPendente)}</p>
           </div>
           <div className="bg-red-50 rounded-xl border border-red-200 p-4">
             <p className="text-xs text-red-600 mb-1">Atrasado</p>
-            <p className="text-xl font-bold text-red-700">R$ {totalAtrasado.toFixed(2)}</p>
+            <p className="text-xl font-bold text-red-700">{fmt(totalAtrasado)}</p>
           </div>
           <div className="bg-green-50 rounded-xl border border-green-200 p-4">
             <p className="text-xs text-green-600 mb-1">Recebido</p>
-            <p className="text-xl font-bold text-green-700">R$ {totalRecebido.toFixed(2)}</p>
+            <p className="text-xl font-bold text-green-700">{fmt(totalRecebido)}</p>
           </div>
         </div>
 
@@ -323,7 +325,7 @@ export default function ContasReceberPage() {
             </select>
           </div>
           <div>
-
+            <label className="block text-xs text-gray-500 mb-1">Data inicio</label>
             <input type="date" value={filtroDataInicio} onChange={e => setFiltroDataInicio(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
           </div>
           <div>
@@ -357,7 +359,7 @@ export default function ContasReceberPage() {
                     <td className="px-4 py-3 text-gray-800">{conta.descricao}</td>
                     <td className="px-4 py-3 text-gray-600">{conta.cliente || '-'}</td>
                     <td className="px-4 py-3 text-gray-600">{conta.categoria || '-'}</td>
-                    <td className="px-4 py-3 font-medium text-gray-800">R$ {parseFloat(conta.valor).toFixed(2)}</td>
+                    <td className="px-4 py-3 font-medium text-gray-800">{fmt(parseFloat(conta.valor))}</td>
                     <td className="px-4 py-3 text-gray-600">{new Date(conta.data_vencimento + 'T00:00:00').toLocaleDateString('pt-BR')}</td>
                     <td className="px-4 py-3">
                       {conta.recorrente && <span className="px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-700">Recorrente</span>}

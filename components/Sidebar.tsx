@@ -63,8 +63,12 @@ export default function Sidebar({ usuario, nomeEmpresa, logoUrl }: { usuario: an
     .join('')
     .toUpperCase()
 
-  const LogoAvatar = ({ size = 9 }: { size?: number }) => (
-    <div className={`w-${size} h-${size} rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0 overflow-hidden`}>
+  const sizeMap: Record<number, string> = { 7: 'w-7 h-7', 8: 'w-8 h-8', 9: 'w-9 h-9' }
+
+const LogoAvatar = ({ size = 9 }: { size?: number }) => {
+  const sizeClass = sizeMap[size] ?? 'w-9 h-9'
+  return (
+    <div className={`${sizeClass} rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0 overflow-hidden`}>
       {logoUrl ? (
         <img src={logoUrl} alt="Logo" className="w-full h-full object-contain p-0.5" />
       ) : (
@@ -72,6 +76,7 @@ export default function Sidebar({ usuario, nomeEmpresa, logoUrl }: { usuario: an
       )}
     </div>
   )
+}
 
   const MenuItem = ({ item }: { item: any }) => {
     const isAtivo = ativo(item.href)
