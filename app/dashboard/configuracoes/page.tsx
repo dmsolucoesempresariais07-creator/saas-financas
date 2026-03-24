@@ -186,13 +186,13 @@ export default function ConfiguracoesPage() {
                   className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">Selecione o segmento</option>
-                  <option value="Comercio">Comercio</option>
+                  <option value="Comercio">Comércio</option>
                   <option value="Servicos">Servicos</option>
                   <option value="Industria">Industria</option>
                   <option value="Tecnologia">Tecnologia</option>
-                  <option value="Saude">Saude</option>
-                  <option value="Educacao">Educacao</option>
-                  <option value="Construcao">Construcao</option>
+                  <option value="Saude">Saúde</option>
+                  <option value="Educacao">Educação</option>
+                  <option value="Construcao">Construção</option>
                   <option value="Outros">Outros</option>
                 </select>
               </div>
@@ -201,7 +201,7 @@ export default function ConfiguracoesPage() {
 
           {/* Configuracoes financeiras */}
           <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <h3 className="text-base font-semibold text-gray-800 mb-4">Configuracoes financeiras</h3>
+            <h3 className="text-base font-semibold text-gray-800 mb-4">Configurações financeiras</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Saldo inicial (R$)</label>
@@ -213,10 +213,10 @@ export default function ConfiguracoesPage() {
                   className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="0,00"
                 />
-                <p className="text-xs text-gray-400 mt-1">Saldo em caixa no inicio</p>
+                <p className="text-xs text-gray-400 mt-1">Saldo em caixa no início</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Mes de inicio</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Mês de inicio</label>
                 <select
                   value={form.mes_inicio}
                   onChange={e => setForm({...form, mes_inicio: parseInt(e.target.value)})}

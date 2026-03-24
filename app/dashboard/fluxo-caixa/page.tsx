@@ -39,7 +39,7 @@ export default function FluxoCaixaPage() {
 
     for (let mes = 1; mes <= 12; mes++) {
       const dataInicio = `${ano}-${String(mes).padStart(2, '0')}-01`
-      const ultimoDia = new Date(ano, mes, 0).getDate()
+      const ultimoDia = new Date(ano, mês, 0).getDate()
       const dataFim = `${ano}-${String(mes).padStart(2, '0')}-${String(ultimoDia).padStart(2, '0')}`
 
       const { data: receber } = await supabase
