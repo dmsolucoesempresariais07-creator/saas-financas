@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation'
 
 export default function ContasReceberPage() {
   const [contas, setContas] = useState<any[]>([])
+  const [categoriasList, setCategoriasList] = useState<any[]>([])
+  const [clientesList, setClientesList] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [mostrarForm, setMostrarForm] = useState(false)
   const [salvando, setSalvando] = useState(false)
@@ -30,7 +32,31 @@ export default function ContasReceberPage() {
 
   useEffect(() => {
     carregarContas()
+    carregarCategorias()
+    carregarClientes()
   }, [])
+
+  const carregarCategorias = async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data } = await supabase
+      .from('categorias')
+      .select('*')
+      .eq('user_id', user?.id)
+      .in('tipo', ['receber', 'ambos'])
+      .order('nome', { ascending: true })
+    setCategoriasList(data || [])
+  }
+
+  const carregarClientes = async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data } = await supabase
+      .from('clientes_fornecedores')
+      .select('*')
+      .eq('user_id', user?.id)
+      .in('tipo', ['cliente', 'ambos'])
+      .order('nome', { ascending: true })
+    setClientesList(data || [])
+  }
 
   const carregarContas = async () => {
     const { data, error } = await supabase
@@ -152,7 +178,7 @@ export default function ContasReceberPage() {
       'Nota Fiscal': c.numero_nota || '',
       'Forma de Pagamento': c.forma_pagamento || '',
       'Valor (R$)': parseFloat(c.valor).toFixed(2),
-      Vencimento: new Date(c.data_vencimento).toLocaleDateString('pt-BR'),
+      Vencimento: new Date(c.data_vencimento + 'T00:00:00').toLocaleDateString('pt-BR'),
       Status: c.status,
       Tipo: c.recorrente ? 'Recorrente' : c.parcelado ? `Parcelado ${c.parcela_atual}/${c.total_parcelas}` : 'Normal',
     }))
@@ -182,17 +208,9 @@ export default function ContasReceberPage() {
   const totalRecebido = contasFiltradas.filter(c => c.status === 'recebido').reduce((s, c) => s + parseFloat(c.valor), 0)
   const totalGeral = contasFiltradas.reduce((s, c) => s + parseFloat(c.valor), 0)
 
-  const fmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-        <button onClick={() => router.push('/dashboard')} className="text-sm text-gray-500 hover:underline">
-          ← Inicio
-        </button>
-      </nav>
-
-      <div className="max-w-6xl mx-auto px-6 py-8">
+    <div className="px-6 py-6">
+      <div className="max-w-6xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold text-gray-800">Contas a Receber</h2>
           <div className="flex gap-3">
@@ -208,19 +226,19 @@ export default function ContasReceberPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <div className="bg-white rounded-xl border border-gray-200 p-4">
             <p className="text-xs text-gray-500 mb-1">Total geral</p>
-            <p className="text-xl font-bold text-gray-800">{fmt(totalGeral)}</p>
+            <p className="text-xl font-bold text-gray-800">R$ {totalGeral.toFixed(2)}</p>
           </div>
           <div className="bg-yellow-50 rounded-xl border border-yellow-200 p-4">
             <p className="text-xs text-yellow-600 mb-1">Pendente</p>
-            <p className="text-xl font-bold text-yellow-700">{fmt(totalPendente)}</p>
+            <p className="text-xl font-bold text-yellow-700">R$ {totalPendente.toFixed(2)}</p>
           </div>
           <div className="bg-red-50 rounded-xl border border-red-200 p-4">
             <p className="text-xs text-red-600 mb-1">Atrasado</p>
-            <p className="text-xl font-bold text-red-700">{fmt(totalAtrasado)}</p>
+            <p className="text-xl font-bold text-red-700">R$ {totalAtrasado.toFixed(2)}</p>
           </div>
           <div className="bg-green-50 rounded-xl border border-green-200 p-4">
             <p className="text-xs text-green-600 mb-1">Recebido</p>
-            <p className="text-xl font-bold text-green-700">{fmt(totalRecebido)}</p>
+            <p className="text-xl font-bold text-green-700">R$ {totalRecebido.toFixed(2)}</p>
           </div>
         </div>
 
@@ -234,7 +252,12 @@ export default function ContasReceberPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Cliente</label>
-                <input type="text" value={form.cliente} onChange={e => setForm({...form, cliente: e.target.value})} className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm" placeholder="Nome do cliente" />
+                <select value={form.cliente} onChange={e => setForm({...form, cliente: e.target.value})} className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm">
+                  <option value="">Selecione ou digite</option>
+                  {clientesList.map(c => (
+                    <option key={c.id} value={c.nome}>{c.nome}</option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Valor (R$) *</label>
@@ -248,9 +271,9 @@ export default function ContasReceberPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Categoria</label>
                 <select value={form.categoria} onChange={e => setForm({...form, categoria: e.target.value})} className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm">
                   <option value="">Selecione</option>
-                  <option value="Receita com Produtos">Receita com Produtos</option>
-                  <option value="Receita com Servicos">Receita com Servicos</option>
-                  <option value="Outras Receitas">Outras Receitas</option>
+                  {categoriasList.map(c => (
+                    <option key={c.id} value={c.nome}>{c.nome}</option>
+                  ))}
                 </select>
               </div>
               <div>
@@ -336,16 +359,16 @@ export default function ContasReceberPage() {
 
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-200">
+            <thead className="bg-gray-800 text-white">
               <tr>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium">Descricao</th>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium">Cliente</th>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium">Categoria</th>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium">Valor</th>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium">Vencimento</th>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium">Tipo</th>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium">Status</th>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium">Acoes</th>
+                <th className="text-left px-4 py-3 font-medium">Descricao</th>
+                <th className="text-left px-4 py-3 font-medium">Cliente</th>
+                <th className="text-left px-4 py-3 font-medium">Categoria</th>
+                <th className="text-left px-4 py-3 font-medium">Valor</th>
+                <th className="text-left px-4 py-3 font-medium">Vencimento</th>
+                <th className="text-left px-4 py-3 font-medium">Tipo</th>
+                <th className="text-left px-4 py-3 font-medium">Status</th>
+                <th className="text-left px-4 py-3 font-medium">Acoes</th>
               </tr>
             </thead>
             <tbody>
@@ -359,7 +382,7 @@ export default function ContasReceberPage() {
                     <td className="px-4 py-3 text-gray-800">{conta.descricao}</td>
                     <td className="px-4 py-3 text-gray-600">{conta.cliente || '-'}</td>
                     <td className="px-4 py-3 text-gray-600">{conta.categoria || '-'}</td>
-                    <td className="px-4 py-3 font-medium text-gray-800">{fmt(parseFloat(conta.valor))}</td>
+                    <td className="px-4 py-3 font-medium text-gray-800">R$ {parseFloat(conta.valor).toFixed(2)}</td>
                     <td className="px-4 py-3 text-gray-600">{new Date(conta.data_vencimento + 'T00:00:00').toLocaleDateString('pt-BR')}</td>
                     <td className="px-4 py-3">
                       {conta.recorrente && <span className="px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-700">Recorrente</span>}

@@ -30,8 +30,10 @@ const menuItems = [
   ]},
   { label: 'DRE', icon: 'dre', href: '/dashboard/dre', separador: true },
   { label: 'Relatorios', icon: 'relatorios', href: '/dashboard/relatorios' },
-  { label: 'Configuracoes', icon: 'config', href: '/dashboard/configuracoes', separador: true },
-  { label: 'Suporte', icon: 'suporte', href: '/dashboard/suporte' },
+  { label: 'Configuracoes', icon: 'config', href: '/dashboard/configuracoes', separador: true, sub: [
+  { label: 'Geral', href: '/dashboard/configuracoes' },
+  { label: 'Categorias', href: '/dashboard/configuracoes/categorias' },
+]},  { label: 'Suporte', icon: 'suporte', href: '/dashboard/suporte' },
 ]
 
 export default function Sidebar({ usuario, nomeEmpresa, logoUrl }: { usuario: any, nomeEmpresa?: string, logoUrl?: string }) {
