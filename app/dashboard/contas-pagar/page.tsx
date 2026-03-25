@@ -1,161 +1,147 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 
 export default function ContasPagarPage() {
   const [contas, setContas] = useState<any[]>([])
+  const [categoriasList, setCategoriasList] = useState<any[]>([])
+  const [fornecedoresList, setFornecedoresList] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [mostrarForm, setMostrarForm] = useState(false)
   const [salvando, setSalvando] = useState(false)
   const [filtroStatus, setFiltroStatus] = useState('todos')
   const [filtroDataInicio, setFiltroDataInicio] = useState('')
   const [filtroDataFim, setFiltroDataFim] = useState('')
+  const [fornecedorDigitado, setFornecedorDigitado] = useState('')
+  const [mostrarSugestoes, setMostrarSugestoes] = useState(false)
+  const [mostrarModalFornecedor, setMostrarModalFornecedor] = useState(false)
+  const [salvandoFornecedor, setSalvandoFornecedor] = useState(false)
+  const [formFornecedor, setFormFornecedor] = useState({
+    nome: '', cpf_cnpj: '', email: '', telefone: '', endereco: '', cidade: '', estado: '', observacoes: ''
+  })
+  const fornecedorRef = useRef<HTMLDivElement>(null)
+  const estados = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO']
   const [form, setForm] = useState({
-    descricao: '',
-    valor: '',
-    data_vencimento: '',
-    fornecedor: '',
-    categoria: '',
-    centro_custo: '',
-    numero_nota: '',
-    observacao: '',
-    forma_pagamento: '',
-    recorrente: false,
-    parcelado: false,
-    total_parcelas: '1',
+    descricao: '', valor: '', data_vencimento: '', fornecedor: '', categoria: '',
+    centro_custo: '', numero_nota: '', observacao: '', forma_pagamento: '',
+    recorrente: false, parcelado: false, total_parcelas: '1',
   })
   const router = useRouter()
 
   useEffect(() => {
     carregarContas()
+    carregarCategorias()
+    carregarFornecedores()
   }, [])
 
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (fornecedorRef.current && !fornecedorRef.current.contains(e.target as Node)) {
+        setMostrarSugestoes(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  const carregarCategorias = async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data } = await supabase.from('categorias').select('*').eq('user_id', user?.id).in('tipo', ['pagar', 'ambos']).order('nome', { ascending: true })
+    setCategoriasList(data || [])
+  }
+
+  const carregarFornecedores = async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data } = await supabase.from('clientes_fornecedores').select('*').eq('user_id', user?.id).in('tipo', ['fornecedor', 'ambos']).order('nome', { ascending: true })
+    setFornecedoresList(data || [])
+  }
+
   const carregarContas = async () => {
-    const { data, error } = await supabase
-      .from('contas_pagar')
-      .select('*')
-      .order('data_vencimento', { ascending: true })
+    const { data, error } = await supabase.from('contas_pagar').select('*').order('data_vencimento', { ascending: true })
     if (error) alert('Erro ao carregar: ' + error.message)
     setContas(data || [])
     setLoading(false)
   }
 
+  const cadastrarFornecedor = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSalvandoFornecedor(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    const { error } = await supabase.from('clientes_fornecedores').insert({
+      ...formFornecedor, tipo: 'fornecedor', user_id: user?.id
+    })
+    if (error) { alert('Erro: ' + error.message); setSalvandoFornecedor(false); return }
+    await carregarFornecedores()
+    setForm({...form, fornecedor: formFornecedor.nome})
+    setFornecedorDigitado(formFornecedor.nome)
+    setFormFornecedor({ nome: '', cpf_cnpj: '', email: '', telefone: '', endereco: '', cidade: '', estado: '', observacoes: '' })
+    setMostrarModalFornecedor(false)
+    setMostrarSugestoes(false)
+    setSalvandoFornecedor(false)
+  }
+
+  const sugestoesFiltradas = fornecedorDigitado.length >= 1
+    ? fornecedoresList.filter(f => f.nome.toLowerCase().includes(fornecedorDigitado.toLowerCase()))
+    : []
+
+  const fornecedorExisteNaLista = fornecedoresList.some(f => f.nome.toLowerCase() === fornecedorDigitado.toLowerCase())
+
   const adicionarConta = async (e: React.FormEvent) => {
     e.preventDefault()
     setSalvando(true)
-
     const grupoId = crypto.randomUUID()
     const totalParcelas = form.parcelado ? parseInt(form.total_parcelas) : 1
     const registros = []
-
     for (let i = 0; i < totalParcelas; i++) {
       const dataBase = new Date(form.data_vencimento + 'T00:00:00')
       dataBase.setMonth(dataBase.getMonth() + i)
-      const dataVenc = dataBase.toISOString().split('T')[0]
-
       registros.push({
-        descricao: form.parcelado
-          ? `${form.descricao} (Parcela ${i + 1}/${totalParcelas})`
-          : form.descricao,
-        valor: parseFloat(form.valor),
-        data_vencimento: dataVenc,
-        fornecedor: form.fornecedor,
-        categoria: form.categoria,
-        centro_custo: form.centro_custo,
-        numero_nota: form.numero_nota,
-        observacao: form.observacao,
-        forma_pagamento: form.forma_pagamento,
-        recorrente: form.recorrente,
-        parcelado: form.parcelado,
-        total_parcelas: totalParcelas,
-        parcela_atual: i + 1,
-        grupo_id: grupoId,
-        status: 'pendente',
+        descricao: form.parcelado ? `${form.descricao} (Parcela ${i + 1}/${totalParcelas})` : form.descricao,
+        valor: parseFloat(form.valor), data_vencimento: dataBase.toISOString().split('T')[0],
+        fornecedor: form.fornecedor, categoria: form.categoria, centro_custo: form.centro_custo,
+        numero_nota: form.numero_nota, observacao: form.observacao, forma_pagamento: form.forma_pagamento,
+        recorrente: form.recorrente, parcelado: form.parcelado, total_parcelas: totalParcelas,
+        parcela_atual: i + 1, grupo_id: grupoId, status: 'pendente',
       })
     }
-
     const { error } = await supabase.from('contas_pagar').insert(registros)
-
-    if (error) {
-      alert('Erro ao salvar: ' + error.message)
-      setSalvando(false)
-      return
-    }
-
+    if (error) { alert('Erro: ' + error.message); setSalvando(false); return }
     setForm({ descricao: '', valor: '', data_vencimento: '', fornecedor: '', categoria: '', centro_custo: '', numero_nota: '', observacao: '', forma_pagamento: '', recorrente: false, parcelado: false, total_parcelas: '1' })
+    setFornecedorDigitado('')
     setMostrarForm(false)
     carregarContas()
     setSalvando(false)
   }
 
   const marcarStatus = async (id: string, status: string) => {
-    await supabase.from('contas_pagar').update({
-      status,
-      data_pagamento: status === 'pago' ? new Date().toISOString().split('T')[0] : null,
-    }).eq('id', id)
+    await supabase.from('contas_pagar').update({ status, data_pagamento: status === 'pago' ? new Date().toISOString().split('T')[0] : null }).eq('id', id)
     carregarContas()
   }
 
   const excluir = async (conta: any) => {
     if (conta.parcelado && conta.grupo_id) {
-      const confirmar = confirm(`Esta e uma conta parcelada (${conta.parcela_atual}/${conta.total_parcelas}).\n\nDeseja excluir TODAS as parcelas?\n\nOK = Excluir todas\nCancelar = Excluir apenas esta`)
-      if (confirmar) {
-        await supabase.from('contas_pagar').delete().eq('grupo_id', conta.grupo_id)
-      } else {
-        const confirmarUma = confirm('Deseja excluir apenas esta parcela?')
-        if (confirmarUma) await supabase.from('contas_pagar').delete().eq('id', conta.id)
-      }
-    } else {
-      if (confirm('Deseja excluir esta conta?')) {
-        await supabase.from('contas_pagar').delete().eq('id', conta.id)
-      }
+      const confirmar = confirm(`Conta parcelada (${conta.parcela_atual}/${conta.total_parcelas}).\nOK = Excluir todas | Cancelar = Excluir apenas esta`)
+      if (confirmar) await supabase.from('contas_pagar').delete().eq('grupo_id', conta.grupo_id)
+      else if (confirm('Excluir apenas esta?')) await supabase.from('contas_pagar').delete().eq('id', conta.id)
+    } else if (confirm('Excluir esta conta?')) {
+      await supabase.from('contas_pagar').delete().eq('id', conta.id)
     }
     carregarContas()
   }
 
   const gerarProximoMes = async (conta: any) => {
-    const dataAtual = new Date(conta.data_vencimento + 'T00:00:00')
-    dataAtual.setMonth(dataAtual.getMonth() + 1)
-    const novaData = dataAtual.toISOString().split('T')[0]
-
-    const { error } = await supabase.from('contas_pagar').insert({
-      descricao: conta.descricao,
-      valor: conta.valor,
-      data_vencimento: novaData,
-      fornecedor: conta.fornecedor,
-      categoria: conta.categoria,
-      centro_custo: conta.centro_custo,
-      numero_nota: conta.numero_nota,
-      observacao: conta.observacao,
-      forma_pagamento: conta.forma_pagamento,
-      recorrente: true,
-      parcelado: false,
-      total_parcelas: 1,
-      parcela_atual: 1,
-      grupo_id: conta.grupo_id,
-      status: 'pendente',
-    })
-
+    const d = new Date(conta.data_vencimento + 'T00:00:00')
+    d.setMonth(d.getMonth() + 1)
+    const { error } = await supabase.from('contas_pagar').insert({ ...conta, id: undefined, data_vencimento: d.toISOString().split('T')[0], status: 'pendente', recorrente: true, parcelado: false, total_parcelas: 1, parcela_atual: 1 })
     if (error) alert('Erro: ' + error.message)
     else carregarContas()
   }
 
   const exportarExcel = () => {
     if (contasFiltradas.length === 0) { alert('Nenhuma conta para exportar.'); return }
-    const linhas = contasFiltradas.map(c => ({
-      Descricao: c.descricao,
-      Fornecedor: c.fornecedor || '',
-      Categoria: c.categoria || '',
-      'Centro de Custo': c.centro_custo || '',
-      'Nota Fiscal': c.numero_nota || '',
-      'Forma de Pagamento': c.forma_pagamento || '',
-      'Valor (R$)': parseFloat(c.valor).toFixed(2),
-      Vencimento: new Date(c.data_vencimento).toLocaleDateString('pt-BR'),
-      Status: c.status,
-      Tipo: c.recorrente ? 'Recorrente' : c.parcelado ? `Parcelado ${c.parcela_atual}/${c.total_parcelas}` : 'Normal',
-    }))
+    const linhas = contasFiltradas.map(c => ({ Descricao: c.descricao, Fornecedor: c.fornecedor || '', Categoria: c.categoria || '', 'Valor (R$)': parseFloat(c.valor).toFixed(2), Vencimento: new Date(c.data_vencimento + 'T00:00:00').toLocaleDateString('pt-BR'), Status: c.status }))
     const csv = [Object.keys(linhas[0]).join(';'), ...linhas.map(l => Object.values(l).join(';'))].join('\n')
     const blob = new Blob([csv], { type: 'text/csv' })
     const url = URL.createObjectURL(blob)
@@ -166,62 +152,92 @@ export default function ContasPagarPage() {
   }
 
   const hoje = new Date().toISOString().split('T')[0]
-
   const contasFiltradas = contas.filter(c => {
     const statusOk = filtroStatus === 'todos' || c.status === filtroStatus
     const inicioOk = !filtroDataInicio || c.data_vencimento >= filtroDataInicio
     const fimOk = !filtroDataFim || c.data_vencimento <= filtroDataFim
     return statusOk && inicioOk && fimOk
-  }).map(c => ({
-    ...c,
-    status: c.status !== 'pago' && c.data_vencimento < hoje ? 'atrasado' : c.status
-  }))
+  }).map(c => ({ ...c, status: c.status !== 'pago' && c.data_vencimento < hoje ? 'atrasado' : c.status }))
 
   const totalPendente = contasFiltradas.filter(c => c.status === 'pendente').reduce((s, c) => s + parseFloat(c.valor), 0)
   const totalAtrasado = contasFiltradas.filter(c => c.status === 'atrasado').reduce((s, c) => s + parseFloat(c.valor), 0)
   const totalPago = contasFiltradas.filter(c => c.status === 'pago').reduce((s, c) => s + parseFloat(c.valor), 0)
   const totalGeral = contasFiltradas.reduce((s, c) => s + parseFloat(c.valor), 0)
 
-  const fmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="px-6 pt-6">
-        <button onClick={() => router.push('/dashboard')} className="text-sm text-gray-500 hover:text-gray-800 hover:underline">
-          ← Inicio
-        </button>
-      </div>
+    <div className="px-6 py-6">
+      <div className="max-w-6xl mx-auto">
 
-      <div className="max-w-6xl mx-auto px-6 py-8">
+        {/* MODAL CADASTRO FORNECEDOR */}
+        {mostrarModalFornecedor && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 px-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-screen overflow-y-auto">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-800">Novo fornecedor</h3>
+                <button onClick={() => setMostrarModalFornecedor(false)} className="text-gray-400 hover:text-gray-600">
+                  <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
+              <form onSubmit={cadastrarFornecedor} className="px-6 py-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Nome *</label>
+                  <input type="text" value={formFornecedor.nome} onChange={e => setFormFornecedor({...formFornecedor, nome: e.target.value})} className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Nome ou razao social" required />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">CPF/CNPJ</label>
+                  <input type="text" value={formFornecedor.cpf_cnpj} onChange={e => setFormFornecedor({...formFornecedor, cpf_cnpj: e.target.value})} className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="000.000.000-00" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Telefone</label>
+                  <input type="text" value={formFornecedor.telefone} onChange={e => setFormFornecedor({...formFornecedor, telefone: e.target.value})} className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="(00) 00000-0000" />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                  <input type="email" value={formFornecedor.email} onChange={e => setFormFornecedor({...formFornecedor, email: e.target.value})} className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="email@empresa.com" />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Endereco</label>
+                  <input type="text" value={formFornecedor.endereco} onChange={e => setFormFornecedor({...formFornecedor, endereco: e.target.value})} className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Rua, numero, complemento" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Cidade</label>
+                  <input type="text" value={formFornecedor.cidade} onChange={e => setFormFornecedor({...formFornecedor, cidade: e.target.value})} className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Cidade" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Estado</label>
+                  <select value={formFornecedor.estado} onChange={e => setFormFornecedor({...formFornecedor, estado: e.target.value})} className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="">Selecione</option>
+                    {estados.map(uf => <option key={uf} value={uf}>{uf}</option>)}
+                  </select>
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Observacoes</label>
+                  <textarea value={formFornecedor.observacoes} onChange={e => setFormFornecedor({...formFornecedor, observacoes: e.target.value})} className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" rows={2} placeholder="Informacoes adicionais" />
+                </div>
+                <div className="md:col-span-2 flex gap-3 pb-2">
+                  <button type="submit" disabled={salvandoFornecedor} className="flex-1 bg-blue-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
+                    {salvandoFornecedor ? 'Cadastrando...' : 'Cadastrar fornecedor'}
+                  </button>
+                  <button type="button" onClick={() => setMostrarModalFornecedor(false)} className="flex-1 border border-gray-300 py-2.5 rounded-lg text-sm hover:bg-gray-50">Cancelar</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold text-gray-800">Contas a Pagar</h2>
           <div className="flex gap-3">
-            <button onClick={exportarExcel} className="text-sm border border-gray-300 px-4 py-2 rounded-lg hover:bg-gray-50">
-              Exportar Excel
-            </button>
-            <button onClick={() => setMostrarForm(!mostrarForm)} className="text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
-              + Nova conta
-            </button>
+            <button onClick={exportarExcel} className="text-sm border border-gray-300 px-4 py-2 rounded-lg hover:bg-gray-50">Exportar Excel</button>
+            <button onClick={() => setMostrarForm(!mostrarForm)} className="text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">+ Nova conta</button>
           </div>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white rounded-xl border border-gray-200 p-4">
-            <p className="text-xs text-gray-500 mb-1">Total geral</p>
-            <p className="text-xl font-bold text-gray-800">{fmt(totalGeral)}</p>
-          </div>
-          <div className="bg-yellow-50 rounded-xl border border-yellow-200 p-4">
-            <p className="text-xs text-yellow-600 mb-1">Pendente</p>
-            <p className="text-xl font-bold text-yellow-700">{fmt(totalPendente)}</p>
-          </div>
-          <div className="bg-red-50 rounded-xl border border-red-200 p-4">
-            <p className="text-xs text-red-600 mb-1">Atrasado</p>
-            <p className="text-xl font-bold text-red-700">{fmt(totalAtrasado)}</p>
-          </div>
-          <div className="bg-green-50 rounded-xl border border-green-200 p-4">
-            <p className="text-xs text-green-600 mb-1">Pago</p>
-            <p className="text-xl font-bold text-green-700">{fmt(totalPago)}</p>
-          </div>
+          <div className="bg-white rounded-xl border border-gray-200 p-4"><p className="text-xs text-gray-500 mb-1">Total geral</p><p className="text-xl font-bold text-gray-800">R$ {totalGeral.toFixed(2)}</p></div>
+          <div className="bg-yellow-50 rounded-xl border border-yellow-200 p-4"><p className="text-xs text-yellow-600 mb-1">Pendente</p><p className="text-xl font-bold text-yellow-700">R$ {totalPendente.toFixed(2)}</p></div>
+          <div className="bg-red-50 rounded-xl border border-red-200 p-4"><p className="text-xs text-red-600 mb-1">Atrasado</p><p className="text-xl font-bold text-red-700">R$ {totalAtrasado.toFixed(2)}</p></div>
+          <div className="bg-green-50 rounded-xl border border-green-200 p-4"><p className="text-xs text-green-600 mb-1">Pago</p><p className="text-xl font-bold text-green-700">R$ {totalPago.toFixed(2)}</p></div>
         </div>
 
         {mostrarForm && (
@@ -232,10 +248,55 @@ export default function ContasPagarPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Descricao *</label>
                 <input type="text" value={form.descricao} onChange={e => setForm({...form, descricao: e.target.value})} className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm" placeholder="Ex: Aluguel" required />
               </div>
-              <div>
+
+              <div ref={fornecedorRef} className="relative">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Fornecedor</label>
-                <input type="text" value={form.fornecedor} onChange={e => setForm({...form, fornecedor: e.target.value})} className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm" placeholder="Nome do fornecedor" />
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={fornecedorDigitado}
+                    onChange={e => { setFornecedorDigitado(e.target.value); setForm({...form, fornecedor: e.target.value}); setMostrarSugestoes(true) }}
+                    onFocus={() => { if (fornecedorDigitado.length >= 1) setMostrarSugestoes(true) }}
+                    className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Digite o nome do fornecedor..."
+                    autoComplete="off"
+                  />
+                  {fornecedorDigitado && (
+                    <button type="button" onClick={() => { setFornecedorDigitado(''); setForm({...form, fornecedor: ''}); setMostrarSugestoes(false) }} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                      <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                  )}
+                </div>
+                {mostrarSugestoes && fornecedorDigitado.length >= 1 && (
+                  <div className="absolute z-50 w-full bg-white border border-gray-200 rounded-xl shadow-lg mt-1 overflow-hidden">
+                    <div className="max-h-44 overflow-y-auto">
+                      {sugestoesFiltradas.length > 0 ? (
+                        sugestoesFiltradas.map(f => (
+                          <button key={f.id} type="button" onClick={() => { setFornecedorDigitado(f.nome); setForm({...form, fornecedor: f.nome}); setMostrarSugestoes(false) }}
+                            className="w-full text-left px-4 py-2.5 text-sm hover:bg-blue-50 text-gray-800 flex items-center gap-2 border-b border-gray-50 last:border-0">
+                            <div className="w-7 h-7 rounded-full bg-red-100 flex items-center justify-center text-red-700 text-xs font-medium flex-shrink-0">{f.nome[0].toUpperCase()}</div>
+                            <span>{f.nome}</span>
+                          </button>
+                        ))
+                      ) : (
+                        <p className="px-4 py-2.5 text-sm text-gray-400">Nenhum fornecedor encontrado</p>
+                      )}
+                    </div>
+                    {fornecedorDigitado.length > 0 && !fornecedorExisteNaLista && (
+                      <div className="border-t border-gray-100">
+                        <button type="button" onClick={() => { setFormFornecedor({...formFornecedor, nome: fornecedorDigitado}); setMostrarModalFornecedor(true); setMostrarSugestoes(false) }}
+                          className="w-full text-left px-4 py-2.5 text-sm text-blue-600 hover:bg-blue-50 flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0">
+                            <svg width="12" height="12" fill="none" stroke="white" strokeWidth="2.5" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                          </div>
+                          <span>Cadastrar "{fornecedorDigitado}" como novo fornecedor</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Valor (R$) *</label>
                 <input type="number" step="0.01" value={form.valor} onChange={e => setForm({...form, valor: e.target.value})} className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm" placeholder="0,00" required />
@@ -248,13 +309,7 @@ export default function ContasPagarPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Categoria</label>
                 <select value={form.categoria} onChange={e => setForm({...form, categoria: e.target.value})} className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm">
                   <option value="">Selecione</option>
-                  <option value="Custos Variaveis">Custos Variaveis</option>
-                  <option value="Despesas com Ocupacao">Despesas com Ocupacao</option>
-                  <option value="Despesas com Servicos">Despesas com Servicos</option>
-                  <option value="Despesas com Pessoal">Despesas com Pessoal</option>
-                  <option value="Outras Despesas">Outras Despesas</option>
-                  <option value="Resultado Financeiro">Resultado Financeiro</option>
-                  <option value="Impostos Diretos">Impostos Diretos</option>
+                  {categoriasList.map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}
                 </select>
               </div>
               <div>
@@ -277,17 +332,16 @@ export default function ContasPagarPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Numero da nota fiscal</label>
                 <input type="text" value={form.numero_nota} onChange={e => setForm({...form, numero_nota: e.target.value})} className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm" placeholder="Ex: NF-001" />
               </div>
-              <div>
+              <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Observacao</label>
                 <input type="text" value={form.observacao} onChange={e => setForm({...form, observacao: e.target.value})} className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm" placeholder="Observacoes adicionais" />
               </div>
-
               <div className="md:col-span-2 border border-gray-200 rounded-lg p-4 bg-gray-50">
                 <p className="text-sm font-medium text-gray-700 mb-3">Tipo de lancamento</p>
                 <div className="flex flex-wrap gap-6">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" checked={form.recorrente} onChange={e => setForm({...form, recorrente: e.target.checked, parcelado: false})} className="w-4 h-4" />
-                    <span className="text-sm text-gray-700">Recorrente (repete todo mes automaticamente)</span>
+                    <span className="text-sm text-gray-700">Recorrente</span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" checked={form.parcelado} onChange={e => setForm({...form, parcelado: e.target.checked, recorrente: false})} className="w-4 h-4" />
@@ -298,21 +352,14 @@ export default function ContasPagarPage() {
                   <div className="mt-3">
                     <label className="block text-sm font-medium text-gray-700 mb-1">Numero de parcelas</label>
                     <input type="number" min="2" max="60" value={form.total_parcelas} onChange={e => setForm({...form, total_parcelas: e.target.value})} className="w-32 border border-gray-300 rounded-lg px-4 py-2 text-sm" />
-                    <p className="text-xs text-gray-400 mt-1">As parcelas serao lancadas automaticamente nos proximos meses</p>
                   </div>
                 )}
-                {form.recorrente && (
-                  <p className="text-xs text-gray-400 mt-2">Um novo lancamento sera criado automaticamente todo mes na mesma data</p>
-                )}
               </div>
-
               <div className="md:col-span-2 flex gap-3">
                 <button type="submit" disabled={salvando} className="bg-blue-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
                   {salvando ? 'Salvando...' : form.parcelado ? `Gerar ${form.total_parcelas} parcelas` : 'Salvar conta'}
                 </button>
-                <button type="button" onClick={() => setMostrarForm(false)} className="border border-gray-300 px-6 py-2 rounded-lg text-sm hover:bg-gray-50">
-                  Cancelar
-                </button>
+                <button type="button" onClick={() => { setMostrarForm(false); setFornecedorDigitado('') }} className="border border-gray-300 px-6 py-2 rounded-lg text-sm hover:bg-gray-50">Cancelar</button>
               </div>
             </form>
           </div>
@@ -340,16 +387,16 @@ export default function ContasPagarPage() {
 
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-200">
+            <thead className="bg-gray-800 text-white">
               <tr>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium">Descricao</th>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium">Fornecedor</th>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium">Categoria</th>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium">Valor</th>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium">Vencimento</th>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium">Tipo</th>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium">Status</th>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium">Acoes</th>
+                <th className="text-left px-4 py-3 font-medium">Descricao</th>
+                <th className="text-left px-4 py-3 font-medium">Fornecedor</th>
+                <th className="text-left px-4 py-3 font-medium">Categoria</th>
+                <th className="text-left px-4 py-3 font-medium">Valor</th>
+                <th className="text-left px-4 py-3 font-medium">Vencimento</th>
+                <th className="text-left px-4 py-3 font-medium">Tipo</th>
+                <th className="text-left px-4 py-3 font-medium">Status</th>
+                <th className="text-left px-4 py-3 font-medium">Acoes</th>
               </tr>
             </thead>
             <tbody>
@@ -363,7 +410,7 @@ export default function ContasPagarPage() {
                     <td className="px-4 py-3 text-gray-800">{conta.descricao}</td>
                     <td className="px-4 py-3 text-gray-600">{conta.fornecedor || '-'}</td>
                     <td className="px-4 py-3 text-gray-600">{conta.categoria || '-'}</td>
-                    <td className="px-4 py-3 font-medium text-gray-800">{fmt(parseFloat(conta.valor))}</td>
+                    <td className="px-4 py-3 font-medium text-gray-800">R$ {parseFloat(conta.valor).toFixed(2)}</td>
                     <td className="px-4 py-3 text-gray-600">{new Date(conta.data_vencimento + 'T00:00:00').toLocaleDateString('pt-BR')}</td>
                     <td className="px-4 py-3">
                       {conta.recorrente && <span className="px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-700">Recorrente</span>}
@@ -371,23 +418,15 @@ export default function ContasPagarPage() {
                       {!conta.recorrente && !conta.parcelado && <span className="text-gray-400 text-xs">Normal</span>}
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        conta.status === 'pago' ? 'bg-green-100 text-green-700' :
-                        conta.status === 'atrasado' ? 'bg-red-100 text-red-700' :
-                        'bg-yellow-100 text-yellow-700'
-                      }`}>
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${conta.status === 'pago' ? 'bg-green-100 text-green-700' : conta.status === 'atrasado' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
                         {conta.status === 'pago' ? 'Pago' : conta.status === 'atrasado' ? 'Atrasado' : 'Pendente'}
                       </span>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-col gap-1">
                         <button onClick={() => router.push(`/dashboard/contas-pagar/editar/${conta.id}`)} className="text-blue-600 hover:underline text-xs">Editar</button>
-                        {conta.status !== 'pago' && (
-                          <button onClick={() => marcarStatus(conta.id, 'pago')} className="text-green-600 hover:underline text-xs">Marcar pago</button>
-                        )}
-                        {conta.recorrente && conta.status === 'pago' && (
-                          <button onClick={() => gerarProximoMes(conta)} className="text-blue-600 hover:underline text-xs">Gerar proximo mes</button>
-                        )}
+                        {conta.status !== 'pago' && <button onClick={() => marcarStatus(conta.id, 'pago')} className="text-green-600 hover:underline text-xs">Marcar pago</button>}
+                        {conta.recorrente && conta.status === 'pago' && <button onClick={() => gerarProximoMes(conta)} className="text-blue-600 hover:underline text-xs">Gerar proximo mes</button>}
                         <button onClick={() => excluir(conta)} className="text-red-500 hover:underline text-xs">Excluir</button>
                       </div>
                     </td>

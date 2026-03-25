@@ -10,11 +10,24 @@ export default function DREPage() {
   const [ano, setAno] = useState(new Date().getFullYear())
   const [periodo, setPeriodo] = useState('anual')
   const [mesInicio, setMesInicio] = useState(1)
+  const [categorias, setCategorias] = useState<any[]>([])
+  const [carregandoCategorias, setCarregandoCategorias] = useState(true)
   const router = useRouter()
 
   useEffect(() => {
-    carregarDados()
-  }, [ano, periodo, mesInicio])
+    carregarCategorias()
+  }, [])
+
+  useEffect(() => {
+    if (!carregandoCategorias) carregarDados()
+  }, [ano, periodo, mesInicio, carregandoCategorias])
+
+  const carregarCategorias = async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data } = await supabase.from('categorias').select('*').eq('user_id', user?.id)
+    setCategorias(data || [])
+    setCarregandoCategorias(false)
+  }
 
   const getMeses = () => {
     switch (periodo) {
@@ -30,221 +43,255 @@ export default function DREPage() {
   const carregarDados = async () => {
     setLoading(true)
     const meses = getMeses()
-    const resultado = []
+    const dataInicio = `${ano}-${String(Math.min(...meses)).padStart(2, '0')}-01`
+    const ultimoMes = Math.max(...meses)
+    const ultimoDia = new Date(ano, ultimoMes, 0).getDate()
+    const dataFim = `${ano}-${String(ultimoMes).padStart(2, '0')}-${String(ultimoDia).padStart(2, '0')}`
 
-    for (const mes of meses) {
-      const dataInicio = `${ano}-${String(mes).padStart(2, '0')}-01`
-    const ultimoDia = new Date(ano, mes, 0).getDate()
-    const dataFim = `${ano}-${String(mes).padStart(2, '0')}-${String(ultimoDia).padStart(2, '0')}`
+    const [{ data: receber }, { data: pagar }] = await Promise.all([
+      supabase.from('contas_receber').select('valor, categoria, data_vencimento').gte('data_vencimento', dataInicio).lte('data_vencimento', dataFim),
+      supabase.from('contas_pagar').select('valor, categoria, data_vencimento').gte('data_vencimento', dataInicio).lte('data_vencimento', dataFim),
+    ])
 
-      const { data: receber } = await supabase
-        .from('contas_receber')
-        .select('valor, categoria')
+    const rec = receber || []
+    const pag = pagar || []
 
-        .gte('data_vencimento', dataInicio)
-        .lte('data_vencimento', dataFim)
+    const catDeducoes = categorias
+      .filter(c => c.subtipo === 'deducao')
+      .map(c => c.nome)
 
-      const { data: pagar } = await supabase
-        .from('contas_pagar')
-        .select('valor, categoria')
-        .gte('data_vencimento', dataInicio)
-        .lte('data_vencimento', dataFim)
+    const catPagarNormal = categorias
+      .filter(c => (c.tipo === 'pagar' || c.tipo === 'ambos') && c.subtipo !== 'deducao')
+      .map(c => c.nome)
 
-      const rec = receber || []
-      const pag = pagar || []
+    const resultado = meses.map(mes => {
+      const dataInicioMes = `${ano}-${String(mes).padStart(2, '0')}-01`
+      const ultimoDiaMes = new Date(ano, mes, 0).getDate()
+      const dataFimMes = `${ano}-${String(mes).padStart(2, '0')}-${String(ultimoDiaMes).padStart(2, '0')}`
 
-      const soma = (arr: any[], cats: string[]) =>
-        arr.filter(c => cats.includes(c.categoria)).reduce((s, c) => s + parseFloat(c.valor), 0)
+      const recMes = rec.filter(c => c.data_vencimento >= dataInicioMes && c.data_vencimento <= dataFimMes)
+      const pagMes = pag.filter(c => c.data_vencimento >= dataInicioMes && c.data_vencimento <= dataFimMes)
 
-      const recProdutos = soma(rec, ['Receita com Produtos'])
-      const recServicos = soma(rec, ['Receita com Servicos'])
-      const outrasReceitas = soma(rec, ['Outras Receitas'])
-      const receitaBruta = recProdutos + recServicos + outrasReceitas
+      const somaRec = (cat: string) => recMes.filter(c => c.categoria === cat).reduce((s, c) => s + parseFloat(c.valor), 0)
+      const somaPag = (cat: string) => pagMes.filter(c => c.categoria === cat).reduce((s, c) => s + parseFloat(c.valor), 0)
 
-      const deducoes = soma(pag, ['Impostos Diretos'])
+      const receitaBruta = recMes.reduce((s, c) => s + parseFloat(c.valor), 0)
+
+      const deducoes = pagMes
+        .filter(c => catDeducoes.includes(c.categoria))
+        .reduce((s, c) => s + parseFloat(c.valor), 0)
+
+      const totalDespesas = pagMes
+        .filter(c => catPagarNormal.includes(c.categoria))
+        .reduce((s, c) => s + parseFloat(c.valor), 0)
+
       const receitaLiquida = receitaBruta - deducoes
-
-      const custosVariaveis = soma(pag, ['Custos Variaveis'])
-      const margemContribuicao = receitaLiquida - custosVariaveis
+      const margemContribuicao = receitaLiquida
       const pctMargem = receitaBruta > 0 ? (margemContribuicao / receitaBruta) * 100 : 0
-
-      const despOcupacao = soma(pag, ['Despesas com Ocupacao'])
-      const despServicos = soma(pag, ['Despesas com Servicos'])
-      const despPessoal = soma(pag, ['Despesas com Pessoal'])
-      const outrasDespesas = soma(pag, ['Outras Despesas'])
-      const totalDespesas = despOcupacao + despServicos + despPessoal + outrasDespesas
-
-      const lucroOperacional = margemContribuicao - totalDespesas
-
-      const recFinanceiras = soma(rec, ['Resultado Financeiro'])
-      const despFinanceiras = soma(pag, ['Resultado Financeiro'])
-      const resultadoFinanceiro = recFinanceiras - despFinanceiras
-
-      const impostosD = soma(pag, ['Impostos Diretos'])
-      const lucroLiquido = lucroOperacional + resultadoFinanceiro
+      const lucroOperacional = receitaLiquida - totalDespesas
+      const lucroLiquido = lucroOperacional
       const pctMargLiquida = receitaBruta > 0 ? (lucroLiquido / receitaBruta) * 100 : 0
 
-      resultado.push({
-        mes,
-        nomeMes: new Date(ano, mes - 1).toLocaleString('pt-BR', { month: 'long' }),
-        receitaBruta, recProdutos, recServicos, outrasReceitas,
-        deducoes, receitaLiquida,
-        custosVariaveis, margemContribuicao, pctMargem,
-        totalDespesas, despOcupacao, despServicos, despPessoal, outrasDespesas,
-        lucroOperacional,
-        recFinanceiras, despFinanceiras, resultadoFinanceiro,
-        impostosD, lucroLiquido, pctMargLiquida,
+      const valoresPorCategoria: Record<string, number> = {}
+      categorias.forEach(cat => {
+        if (cat.tipo === 'receber' || cat.tipo === 'ambos') {
+          valoresPorCategoria[`rec_${cat.nome}`] = somaRec(cat.nome)
+        }
+        if ((cat.tipo === 'pagar' || cat.tipo === 'ambos') && cat.subtipo !== 'deducao') {
+          valoresPorCategoria[`pag_${cat.nome}`] = somaPag(cat.nome)
+        }
       })
-    }
+
+      return {
+        mes,
+        nomeMes: new Date(ano, mes - 1).toLocaleString('pt-BR', { month: 'short' }),
+        receitaBruta, deducoes, receitaLiquida, margemContribuicao, pctMargem,
+        totalDespesas, lucroOperacional, lucroLiquido, pctMargLiquida,
+        ...valoresPorCategoria,
+      }
+    })
 
     setDados(resultado)
     setLoading(false)
   }
 
-  const fmt = (v: number) => v === 0 ? 'R$ -' : v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
   const pct = (v: number) => `${v.toFixed(0)}%`
-
-  const total = (key: string) => dados.reduce((s, d) => s + (d[key] || 0), 0)
-  const totalRB = total('receitaBruta')
-  const av = (v: number) => totalRB > 0 ? `${((v / totalRB) * 100).toFixed(0)}%` : '0%'
+  const totalCol = (key: string) => dados.reduce((s, d) => s + ((d[key] as number) || 0), 0)
+  const totalRB = totalCol('receitaBruta')
+  const av = (v: number) => totalRB > 0 ? `${((v / totalRB) * 100).toFixed(0)}%` : '—'
 
   const mesesDisponiveis = Array.from({length: 12}, (_, i) => ({
     value: i + 1,
     label: new Date(ano, i).toLocaleString('pt-BR', { month: 'long' })
   }))
 
+  const catReceber = categorias.filter(c => c.tipo === 'receber' || c.tipo === 'ambos')
+  const catPagarNormal = categorias.filter(c => (c.tipo === 'pagar' || c.tipo === 'ambos') && c.subtipo !== 'deducao')
+
   type Linha = {
-    key?: string
+    key: string
     label: string
-    tipo: 'titulo' | 'sub' | 'total' | 'pct' | 'separador'
+    tipo: 'titulo' | 'sub' | 'total' | 'pct'
     negativo?: boolean
-    cor?: string
+    corBg: string
+    corText: string
   }
 
   const linhas: Linha[] = [
-    { key: 'receitaBruta', label: 'Receita Bruta', tipo: 'titulo', cor: 'bg-blue-50 text-blue-800' },
-    { key: 'recProdutos', label: 'Receita com Produtos', tipo: 'sub' },
-    { key: 'recServicos', label: 'Receita com Servicos', tipo: 'sub' },
-    { key: 'outrasReceitas', label: 'Outras Receitas', tipo: 'sub' },
-    { key: 'deducoes', label: 'Deducoes sobre Vendas', tipo: 'titulo', negativo: true, cor: 'bg-red-50 text-red-700' },
-    { key: 'receitaLiquida', label: 'Receita Liquida', tipo: 'total', cor: 'bg-blue-100 text-blue-900' },
-    { key: 'custosVariaveis', label: 'Custos Variaveis', tipo: 'titulo', negativo: true, cor: 'bg-orange-50 text-orange-700' },
-    { key: 'margemContribuicao', label: 'Margem Contribuicao', tipo: 'total', cor: 'bg-green-50 text-green-800' },
-    { key: 'pctMargem', label: '% Margem Contribuicao', tipo: 'pct', cor: 'bg-green-50 text-green-700' },
-    { key: 'totalDespesas', label: 'Despesas', tipo: 'titulo', negativo: true, cor: 'bg-red-50 text-red-700' },
-    { key: 'despOcupacao', label: 'Despesas com Ocupacao', tipo: 'sub' },
-    { key: 'despServicos', label: 'Despesas com Servicos', tipo: 'sub' },
-    { key: 'despPessoal', label: 'Despesas com Pessoal', tipo: 'sub' },
-    { key: 'outrasDespesas', label: 'Outras Despesas', tipo: 'sub' },
-    { key: 'lucroOperacional', label: 'Lucro Operacional', tipo: 'total', cor: 'bg-green-100 text-green-900' },
-    { key: 'resultadoFinanceiro', label: 'Resultado Financeiro', tipo: 'titulo', cor: 'bg-gray-50 text-gray-700' },
-    { key: 'recFinanceiras', label: 'Receitas Financeiras', tipo: 'sub' },
-    { key: 'despFinanceiras', label: 'Despesas Financeiras', tipo: 'sub', negativo: true },
-    { key: 'impostosD', label: 'Impostos Diretos', tipo: 'titulo', negativo: true, cor: 'bg-red-50 text-red-700' },
-    { key: 'lucroLiquido', label: 'Lucro Liquido', tipo: 'total', cor: 'bg-green-200 text-green-900' },
-    { key: 'pctMargLiquida', label: '% Margem Liquida', tipo: 'pct', cor: 'bg-green-100 text-green-800' },
+    { key: 'receitaBruta', label: 'Receita Bruta', tipo: 'titulo', corBg: '#2563eb', corText: 'white' },
+    ...catReceber.map(c => ({ key: `rec_${c.nome}`, label: c.nome, tipo: 'sub' as const, corBg: '#ffffff', corText: '#4b5563' })),
+    { key: 'deducoes', label: 'Deduções sobre Vendas', tipo: 'titulo', negativo: true, corBg: '#fef2f2', corText: '#b91c1c' },
+    { key: 'receitaLiquida', label: 'Receita Líquida', tipo: 'total', corBg: '#dbeafe', corText: '#1e3a8a' },
+    { key: 'totalDespesas', label: 'Despesas', tipo: 'titulo', negativo: true, corBg: '#fef2f2', corText: '#b91c1c' },
+    ...catPagarNormal.map(c => ({ key: `pag_${c.nome}`, label: c.nome, tipo: 'sub' as const, corBg: '#ffffff', corText: '#4b5563' })),
+    { key: 'margemContribuicao', label: 'Margem Contribuição', tipo: 'total', corBg: '#f0fdf4', corText: '#14532d' },
+    { key: 'pctMargem', label: '% Margem Contribuição', tipo: 'pct', corBg: '#f0fdf4', corText: '#15803d' },
+    { key: 'lucroOperacional', label: 'Lucro Operacional', tipo: 'total', corBg: '#dcfce7', corText: '#14532d' },
+    { key: 'lucroLiquido', label: 'Lucro Líquido', tipo: 'total', corBg: '#bbf7d0', corText: '#14532d' },
+    { key: 'pctMargLiquida', label: '% Margem Líquida', tipo: 'pct', corBg: '#dcfce7', corText: '#15803d' },
   ]
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-        <h1 className="text-lg font-bold text-blue-600">DM Solucoes</h1>
-        <button onClick={() => router.push('/dashboard')} className="text-sm text-gray-500 hover:underline">
-          Voltar ao dashboard
-        </button>
-      </nav>
+    <div className="px-4 py-6">
+      <h2 className="text-2xl font-bold text-gray-800 mb-6">DRE — Demonstrativo de Resultado</h2>
 
-      <div className="max-w-full px-6 py-8">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-gray-800">DRE — Demonstrativo de Resultado</h2>
+      <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6 flex flex-wrap gap-4 items-end">
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">Ano</label>
+          <select value={ano} onChange={e => setAno(parseInt(e.target.value))} className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
+            {[2023, 2024, 2025, 2026, 2027, 2028, 2029, 2030, 2031, 2032].map(a => <option key={a} value={a}>{a}</option>)}
+          </select>
         </div>
-
-        <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6 flex flex-wrap gap-4 items-end">
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Ano</label>
-            <select value={ano} onChange={e => setAno(parseInt(e.target.value))} className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
-              {[2023, 2024, 2025, 2026, 2027, 2028, 2029, 2030, 2031, 2032].map(a => <option key={a} value={a}>{a}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Periodo</label>
-            <select value={periodo} onChange={e => { setPeriodo(e.target.value); setMesInicio(1) }} className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
-              <option value="mensal">Mensal</option>
-              <option value="bimestral">Bimestral</option>
-              <option value="trimestral">Trimestral</option>
-              <option value="semestral">Semestral</option>
-              <option value="anual">Anual</option>
-            </select>
-          </div>
-          {periodo !== 'anual' && (
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">{periodo === 'semestral' ? 'Semestre' : 'Mes inicial'}</label>
-              {periodo === 'semestral' ? (
-                <select value={mesInicio} onChange={e => setMesInicio(parseInt(e.target.value))} className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
-                  <option value={1}>1º Semestre (Jan-Jun)</option>
-                  <option value={7}>2º Semestre (Jul-Dez)</option>
-                </select>
-              ) : (
-                <select value={mesInicio} onChange={e => setMesInicio(parseInt(e.target.value))} className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
-                  {mesesDisponiveis.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-                </select>
-              )}
-            </div>
-          )}
-          <button onClick={carregarDados} className="bg-blue-600 text-white px-4 py-1.5 rounded-lg text-sm hover:bg-blue-700">
-            Atualizar
-          </button>
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">Período</label>
+          <select value={periodo} onChange={e => { setPeriodo(e.target.value); setMesInicio(1) }} className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
+            <option value="mensal">Mensal</option>
+            <option value="bimestral">Bimestral</option>
+            <option value="trimestral">Trimestral</option>
+            <option value="semestral">Semestral</option>
+            <option value="anual">Anual</option>
+          </select>
         </div>
-
-        {loading ? (
-          <div className="text-center py-12 text-gray-400">Carregando...</div>
-        ) : (
-          <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
-            <table className="text-xs" style={{minWidth: '900px', width: '100%'}}>
-              <thead className="bg-gray-800 text-white">
-                <tr>
-                  <th className="text-left px-4 py-3 font-medium sticky left-0 bg-gray-800" style={{minWidth:'220px'}}>Demonstrativo de Resultado</th>
-                  {dados.map(d => (
-                    <th key={d.mes} className="text-right px-3 py-3 font-medium capitalize" style={{minWidth:'90px'}}>{d.nomeMes}</th>
-                  ))}
-                  <th className="text-right px-3 py-3 font-medium bg-gray-700" style={{minWidth:'90px'}}>{ano}</th>
-                  <th className="text-right px-3 py-3 font-medium bg-gray-600" style={{minWidth:'60px'}}>AV%</th>
-                </tr>
-              </thead>
-              <tbody>
-                {linhas.map((linha, idx) => {
-                  const isTitulo = linha.tipo === 'titulo'
-                  const isTotal = linha.tipo === 'total'
-                  const isPct = linha.tipo === 'pct'
-                  const isSub = linha.tipo === 'sub'
-                  const totalVal = linha.key ? total(linha.key) : 0
-
-                  return (
-                    <tr key={idx} className={`border-b border-gray-100 ${linha.cor || (isSub ? '' : '')} ${isTotal ? 'font-bold' : ''}`}>
-                      <td className={`px-4 py-2 sticky left-0 ${linha.cor || 'bg-white'} ${isSub ? 'pl-8 text-gray-600' : 'font-medium'} ${isTotal ? 'font-bold' : ''}`}>
-                        {linha.negativo && !isPct ? '(-) ' : ''}{linha.label}
-                      </td>
-                      {dados.map(d => (
-                        <td key={d.mes} className={`px-3 py-2 text-right ${linha.cor || 'bg-white'} ${isSub ? 'text-gray-500' : ''}`}>
-                          {isPct ? pct(d[linha.key!] || 0) : fmt(d[linha.key!] || 0)}
-                        </td>
-                      ))}
-                      <td className={`px-3 py-2 text-right font-bold ${linha.cor || 'bg-gray-50'}`}>
-                        {isPct
-                          ? pct(totalRB > 0 ? (total('lucroLiquido') / totalRB) * 100 : 0)
-                          : fmt(totalVal)}
-                      </td>
-                      <td className={`px-3 py-2 text-right ${linha.cor || 'bg-gray-100'} text-gray-600`}>
-                        {isPct ? '-' : av(totalVal)}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+        {periodo !== 'anual' && (
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">{periodo === 'semestral' ? 'Semestre' : 'Mês inicial'}</label>
+            {periodo === 'semestral' ? (
+              <select value={mesInicio} onChange={e => setMesInicio(parseInt(e.target.value))} className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
+                <option value={1}>1º Semestre</option>
+                <option value={7}>2º Semestre</option>
+              </select>
+            ) : (
+              <select value={mesInicio} onChange={e => setMesInicio(parseInt(e.target.value))} className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
+                {mesesDisponiveis.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+              </select>
+            )}
           </div>
         )}
+        <button onClick={carregarDados} className="bg-blue-600 text-white px-4 py-1.5 rounded-lg text-sm hover:bg-blue-700">Atualizar</button>
       </div>
+
+      {!carregandoCategorias && categorias.length === 0 && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-6">
+          <p className="text-sm text-yellow-800">
+            Nenhuma categoria cadastrada.
+            <button onClick={() => router.push('/dashboard/configuracoes/categorias')} className="font-semibold underline ml-1">
+              Cadastre categorias aqui.
+            </button>
+          </p>
+        </div>
+      )}
+
+      {loading ? (
+        <div className="text-center py-8 text-gray-400">
+          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+          <p className="text-sm">Carregando...</p>
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto shadow-sm">
+          <table style={{width: '100%', borderCollapse: 'collapse', fontSize: '12px'}}>
+            <thead>
+              <tr style={{background: '#1f2937', color: 'white'}}>
+                <th style={{textAlign: 'left', padding: '10px 16px', position: 'sticky', left: 0, background: '#1f2937', minWidth: '200px', fontWeight: 500}}>Demonstrativo</th>
+                {dados.map(d => (
+                  <th key={d.mes} style={{textAlign: 'right', padding: '10px 12px', minWidth: '85px', fontWeight: 500, textTransform: 'capitalize'}}>{d.nomeMes}</th>
+                ))}
+                <th style={{textAlign: 'right', padding: '10px 12px', minWidth: '90px', fontWeight: 600, background: '#374151'}}>{ano}</th>
+                <th style={{textAlign: 'right', padding: '10px 12px', minWidth: '55px', fontWeight: 500, background: '#4b5563'}}>AV%</th>
+              </tr>
+            </thead>
+            <tbody>
+              {linhas.map((linha, idx) => {
+                const isTotal = linha.tipo === 'total'
+                const isPct = linha.tipo === 'pct'
+                const isSub = linha.tipo === 'sub'
+                const isTitulo = linha.tipo === 'titulo'
+                const totalVal = totalCol(linha.key)
+
+                return (
+                  <tr key={idx} style={{borderBottom: '1px solid #f3f4f6', background: linha.corBg}}>
+                    <td style={{
+                      padding: isSub ? '7px 16px 7px 32px' : '9px 16px',
+                      fontWeight: isTitulo || isTotal ? 600 : 400,
+                      color: linha.corText,
+                      position: 'sticky',
+                      left: 0,
+                      background: linha.corBg,
+                      whiteSpace: 'nowrap',
+                    }}>
+                      {linha.negativo && !isPct ? '(-) ' : ''}{linha.label}
+                    </td>
+                    {dados.map(d => {
+                      const val = (d[linha.key] as number) || 0
+                      return (
+                        <td key={d.mes} style={{
+                          padding: '7px 12px',
+                          textAlign: 'right',
+                          color: val < 0 ? '#dc2626' : linha.corText,
+                          fontWeight: isTitulo || isTotal ? 600 : 400,
+                          fontVariantNumeric: 'tabular-nums',
+                          background: linha.corBg,
+                        }}>
+                          {isPct
+                            ? pct(d[linha.key] || 0)
+                            : val === 0
+                              ? <span style={{color: '#d1d5db'}}>—</span>
+                              : val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                          }
+                        </td>
+                      )
+                    })}
+                    <td style={{
+                      padding: '7px 12px',
+                      textAlign: 'right',
+                      fontWeight: 700,
+                      color: totalVal < 0 ? '#dc2626' : linha.corText,
+                      fontVariantNumeric: 'tabular-nums',
+                      background: linha.corBg,
+                      borderLeft: '1px solid #e5e7eb',
+                    }}>
+                      {isPct
+                        ? pct(totalRB > 0 ? (totalCol('lucroLiquido') / totalRB) * 100 : 0)
+                        : totalVal === 0
+                          ? <span style={{color: '#d1d5db'}}>—</span>
+                          : totalVal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                      }
+                    </td>
+                    <td style={{
+                      padding: '7px 12px',
+                      textAlign: 'right',
+                      color: '#6b7280',
+                      fontVariantNumeric: 'tabular-nums',
+                      background: linha.corBg,
+                    }}>
+                      {isPct ? '—' : av(totalVal)}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   )
 }

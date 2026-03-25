@@ -8,6 +8,7 @@ export default function EditarContaPagarPage() {
   const [loading, setLoading] = useState(true)
   const [salvando, setSalvando] = useState(false)
   const [conta, setConta] = useState<any>(null)
+  const [categoriasList, setCategoriasList] = useState<any[]>([])
   const [form, setForm] = useState({
     descricao: '',
     valor: '',
@@ -25,7 +26,19 @@ export default function EditarContaPagarPage() {
 
   useEffect(() => {
     carregarConta()
+    carregarCategorias()
   }, [])
+
+  const carregarCategorias = async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data } = await supabase
+      .from('categorias')
+      .select('*')
+      .eq('user_id', user?.id)
+      .in('tipo', ['pagar', 'ambos'])
+      .order('nome', { ascending: true })
+    setCategoriasList(data || [])
+  }
 
   const carregarConta = async () => {
     const { data, error } = await supabase
@@ -106,30 +119,24 @@ export default function EditarContaPagarPage() {
   if (loading) return <div className="min-h-screen flex items-center justify-center"><p className="text-gray-400">Carregando...</p></div>
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="px-6 pt-6">
-        <button onClick={() => router.push('/dashboard/contas-pagar')} className="text-sm text-gray-500 hover:text-gray-800 hover:underline">
-          ← Inicio
-        </button>
-      </div>
-
-      <div className="max-w-3xl mx-auto px-6 py-8">
+    <div className="px-6 py-8">
+      <div className="max-w-3xl mx-auto">
         <h2 className="text-2xl font-bold text-gray-800 mb-2">Editar conta a pagar</h2>
         {conta.parcelado && (
           <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2 mb-6 text-sm text-blue-700">
-            Esta e uma conta parcelada — todas as parcelas serao atualizadas!
+            Esta é uma conta parcelada — todas as parcelas serão atualizadas!
           </div>
         )}
         {conta.recorrente && (
           <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2 mb-6 text-sm text-blue-700">
-            Esta e uma conta recorrente.
+            Esta é uma conta recorrente.
           </div>
         )}
 
         <div className="bg-white rounded-xl border border-gray-200 p-6">
           <form onSubmit={salvar} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Descricao *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Descrição *</label>
               <input type="text" value={form.descricao} onChange={e => setForm({...form, descricao: e.target.value})} className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm" required />
             </div>
             <div>
@@ -148,13 +155,9 @@ export default function EditarContaPagarPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">Categoria</label>
               <select value={form.categoria} onChange={e => setForm({...form, categoria: e.target.value})} className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm">
                 <option value="">Selecione</option>
-                <option value="Custos Variaveis">Custos Variaveis</option>
-                <option value="Despesas com Ocupacao">Despesas com Ocupacao</option>
-                <option value="Despesas com Servicos">Despesas com Servicos</option>
-                <option value="Despesas com Pessoal">Despesas com Pessoal</option>
-                <option value="Outras Despesas">Outras Despesas</option>
-                <option value="Resultado Financeiro">Resultado Financeiro</option>
-                <option value="Impostos Diretos">Impostos Diretos</option>
+                {categoriasList.map(c => (
+                  <option key={c.id} value={c.nome}>{c.nome}</option>
+                ))}
               </select>
             </div>
             <div>
@@ -164,9 +167,9 @@ export default function EditarContaPagarPage() {
                 <option value="Dinheiro">Dinheiro</option>
                 <option value="PIX">PIX</option>
                 <option value="Boleto">Boleto</option>
-                <option value="Cartao de Credito">Cartao de Credito</option>
-                <option value="Cartao de Debito">Cartao de Debito</option>
-                <option value="Transferencia Bancaria">Transferencia Bancaria</option>
+                <option value="Cartão de Crédito">Cartão de Crédito</option>
+                <option value="Cartão de Débito">Cartão de Débito</option>
+                <option value="Transferência Bancária">Transferência Bancária</option>
               </select>
             </div>
             <div>
@@ -174,16 +177,16 @@ export default function EditarContaPagarPage() {
               <input type="text" value={form.centro_custo} onChange={e => setForm({...form, centro_custo: e.target.value})} className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Numero da nota fiscal</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Número da nota fiscal</label>
               <input type="text" value={form.numero_nota} onChange={e => setForm({...form, numero_nota: e.target.value})} className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm" />
             </div>
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Observacao</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Observação</label>
               <input type="text" value={form.observacao} onChange={e => setForm({...form, observacao: e.target.value})} className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm" />
             </div>
             <div className="md:col-span-2 flex gap-3">
               <button type="submit" disabled={salvando} className="bg-blue-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
-                {salvando ? 'Salvando...' : 'Salvar alteracoes'}
+                {salvando ? 'Salvando...' : 'Salvar alterações'}
               </button>
               <button type="button" onClick={() => router.push('/dashboard/contas-pagar')} className="border border-gray-300 px-6 py-2 rounded-lg text-sm hover:bg-gray-50">
                 Cancelar
