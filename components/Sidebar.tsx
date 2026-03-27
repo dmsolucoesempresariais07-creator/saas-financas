@@ -76,12 +76,31 @@ export default function Sidebar({ usuario, nomeEmpresa, logoUrl }: { usuario: an
     .join('')
     .toUpperCase()
 
-  const LogoAvatar = ({ size = 9 }: { size?: number }) => (
-    <div className={`w-${size} h-${size} rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0 overflow-hidden`}>
+  const LogoAvatar = ({ size = 36 }: { size?: number }) => (
+    <div style={{
+      width: `${size}px`,
+      height: `${size}px`,
+      borderRadius: '8px',
+      overflow: 'hidden',
+      flexShrink: 0,
+      background: '#2563eb',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+    }}>
       {logoUrl ? (
-        <img src={logoUrl} alt="Logo" className="w-full h-full object-contain p-0.5" />
+        <img
+          src={logoUrl}
+          alt="Logo"
+          style={{
+            width: `${size}px`,
+            height: `${size}px`,
+            objectFit: 'cover',
+            display: 'block',
+          }}
+        />
       ) : (
-        <span className="text-xs">{iniciais}</span>
+        <span style={{color: 'white', fontSize: '12px', fontWeight: 'bold'}}>{iniciais}</span>
       )}
     </div>
   )
@@ -144,20 +163,20 @@ export default function Sidebar({ usuario, nomeEmpresa, logoUrl }: { usuario: an
     <>
       <aside className={`hidden md:flex flex-col min-h-screen bg-gray-800 text-white fixed left-0 top-0 z-40 transition-all duration-300 ${recolhido ? 'w-16' : 'w-60'}`}>
 
-        <div className={`bg-gray-900 border-b border-gray-700 flex items-center ${recolhido ? 'justify-center py-4 px-2' : 'px-4 py-5 justify-between'}`}>
+        <div className={`bg-gray-900 border-b border-gray-700 flex items-center ${recolhido ? 'justify-center py-4 px-2 flex-col gap-2' : 'px-4 py-5 justify-between'}`}>
           {!recolhido && (
             <div className="flex items-center gap-3 overflow-hidden flex-1">
-              <LogoAvatar size={9} />
+              <LogoAvatar size={36} />
               <div className="overflow-hidden">
                 <p className="text-sm font-semibold text-white truncate">{nomeEmpresa || 'DM Soluções'}</p>
                 <p className="text-xs text-gray-400 truncate">{usuario?.email}</p>
               </div>
             </div>
           )}
-          {recolhido && <LogoAvatar size={8} />}
+          {recolhido && <LogoAvatar size={32} />}
           <button
             onClick={() => setRecolhido(!recolhido)}
-            className={`text-gray-400 hover:text-white p-1.5 rounded-lg hover:bg-gray-700 transition flex-shrink-0 ${recolhido ? 'mt-2' : ''}`}
+            className="text-gray-400 hover:text-white p-1.5 rounded-lg hover:bg-gray-700 transition flex-shrink-0"
           >
             {icons.toggle}
           </button>
@@ -183,7 +202,7 @@ export default function Sidebar({ usuario, nomeEmpresa, logoUrl }: { usuario: an
 
       <header className="md:hidden fixed top-0 left-0 right-0 z-40 bg-gray-900 text-white px-4 py-3 flex items-center justify-between border-b border-gray-700">
         <div className="flex items-center gap-2">
-          <LogoAvatar size={7} />
+          <LogoAvatar size={28} />
           <span className="text-sm font-semibold truncate max-w-36">{nomeEmpresa || 'DM Soluções'}</span>
         </div>
         <button onClick={() => setMenuAberto(!menuAberto)} className="text-gray-300 hover:text-white p-1">

@@ -53,9 +53,13 @@ export default function CategoriasPage() {
       .select('*')
       .eq('user_id', user?.id)
       .eq('ativo', true)
-      .order('codigo', { ascending: true })
     if (error) alert('Erro: ' + error.message)
-    setCategorias(data || [])
+    const sorted = (data || []).sort((a, b) => {
+      const numA = parseFloat(a.codigo || '0')
+      const numB = parseFloat(b.codigo || '0')
+      return numA - numB
+    })
+    setCategorias(sorted)
     setLoading(false)
   }
 
@@ -171,17 +175,13 @@ export default function CategoriasPage() {
       </button>
       {menuAberto === cat.id && (
         <div className="absolute right-0 top-8 z-50 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-28">
-          <button
-            onClick={() => abrirEdicao(cat)}
-            className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 transition"
-          >
+          <button onClick={() => abrirEdicao(cat)}
+            className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 transition">
             <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
             Editar
           </button>
-          <button
-            onClick={() => { setMenuAberto(null); excluir(cat) }}
-            className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-red-50 hover:text-red-700 transition"
-          >
+          <button onClick={() => { setMenuAberto(null); excluir(cat) }}
+            className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-red-50 hover:text-red-700 transition">
             <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
             Excluir
           </button>
@@ -344,9 +344,7 @@ export default function CategoriasPage() {
                                 </button>
                               )}
                               <span className="text-gray-800">{cat.nome}</span>
-                              {subs.length > 0 && (
-                                <span className="text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">{subs.length}</span>
-                              )}
+                              {subs.length > 0 && <span className="text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">{subs.length}</span>}
                             </div>
                           </td>
                           <td className="px-4 py-3">
@@ -355,11 +353,8 @@ export default function CategoriasPage() {
                             </span>
                           </td>
                           <td className="px-4 py-3 text-gray-600">{linhaInfo?.label || '-'}</td>
-                          <td className="px-4 py-3">
-                            <BotaoAcoes cat={cat} />
-                          </td>
+                          <td className="px-4 py-3"><BotaoAcoes cat={cat} /></td>
                         </tr>
-
                         {expandido && subs.map(sub => {
                           const subLinhaInfo = getLinhaDRE(sub.linha_dre)
                           const subIndicador = sub.subtipo || 'Débito'
@@ -378,9 +373,7 @@ export default function CategoriasPage() {
                                 </span>
                               </td>
                               <td className="px-4 py-2.5 text-gray-500 text-sm">{subLinhaInfo?.label || '-'}</td>
-                              <td className="px-4 py-2.5">
-                                <BotaoAcoes cat={sub} />
-                              </td>
+                              <td className="px-4 py-2.5"><BotaoAcoes cat={sub} /></td>
                             </tr>
                           )
                         })}
