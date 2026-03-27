@@ -9,15 +9,12 @@ export default function PlanoDeContasPage() {
   const [loading, setLoading] = useState(true)
   const [salvando, setSalvando] = useState(false)
   const [busca, setBusca] = useState('')
-  const [porPagina, setPorPagina] = useState(25)
+  const [porPagina, setPorPagina] = useState(50)
   const [mostrarForm, setMostrarForm] = useState(false)
   const [editando, setEditando] = useState<any>(null)
   const [menuAberto, setMenuAberto] = useState<string | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
-  const [form, setForm] = useState({
-    descricao: '',
-    categoria: '',
-  })
+  const [form, setForm] = useState({ descricao: '', categoria: '' })
 
   useEffect(() => { carregarDados() }, [])
 
@@ -32,36 +29,33 @@ export default function PlanoDeContasPage() {
   }, [])
 
   const carregarDados = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
+    setLoading(true)
 
-    const { data: cats } = await supabase
+    const { data: todos, error } = await supabase
       .from('categorias')
       .select('*')
-      .eq('user_id', user?.id)
-      .eq('ativo', true)
-      .is('parent_id', null)
-      .order('codigo', { ascending: true })
 
-    setCategoriasPai(cats || [])
+    if (error) {
+      alert('Erro: ' + error.message)
+      setLoading(false)
+      return
+    }
 
-    const { data: subs } = await supabase
-      .from('categorias')
-      .select('*')
-      .eq('user_id', user?.id)
-      .eq('ativo', true)
-      .not('parent_id', 'is', null)
-      .order('codigo', { ascending: true })
+    const cats = (todos || []).filter(c => !c.parent_id)
+    const subs = (todos || []).filter(c => c.parent_id)
 
-    setSubcontas(subs || [])
+    const paiOrdenados = cats.sort((a, b) => parseFloat(a.codigo) - parseFloat(b.codigo))
+    setCategoriasPai(paiOrdenados)
+
+    const subsOrdenadas = subs.sort((a, b) => {
+      const [aMain, aSub] = (a.codigo || '0.0').split('.').map(Number)
+      const [bMain, bSub] = (b.codigo || '0.0').split('.').map(Number)
+      if (aMain !== bMain) return aMain - bMain
+      return aSub - bSub
+    })
+
+    setSubcontas(subsOrdenadas)
     setLoading(false)
-  }
-
-  const getCodigoSimples = (sub: any, lista: any[]) => {
-    const subsOrdenadas = lista
-      .filter(s => s.parent_id === sub.parent_id)
-      .sort((a, b) => (a.codigo || '').localeCompare(b.codigo || ''))
-    const idx = subsOrdenadas.findIndex(s => s.id === sub.id)
-    return idx + 1
   }
 
   const gerarProximoCodigo = (parentId: string) => {
@@ -85,31 +79,18 @@ export default function PlanoDeContasPage() {
         parent_id: form.categoria,
         linha_dre: pai?.linha_dre || editando.linha_dre,
       }).eq('id', editando.id)
-
       if (error) { alert('Erro: ' + error.message); setSalvando(false); return }
-
       if (form.descricao !== editando.nome) {
         await supabase.from('contas_receber').update({ categoria: form.descricao }).eq('categoria', editando.nome)
         await supabase.from('contas_pagar').update({ categoria: form.descricao }).eq('categoria', editando.nome)
-        await supabase.from('categorias_log').insert({
-          categoria_id: editando.id, user_id: user?.id,
-          campo_alterado: 'nome', valor_anterior: editando.nome, valor_novo: form.descricao,
-        })
       }
     } else {
       if (!pai) { alert('Categoria não encontrada!'); setSalvando(false); return }
       const existentes = subcontas.filter(s => s.parent_id === pai.id)
       const codigo = `${pai.codigo}.${existentes.length + 1}`
-
       const { error } = await supabase.from('categorias').insert({
-        nome: form.descricao,
-        tipo: 'ambos',
-        linha_dre: pai.linha_dre,
-        subtipo: 'Débito',
-        parent_id: pai.id,
-        codigo,
-        ativo: true,
-        user_id: user?.id,
+        nome: form.descricao, tipo: 'ambos', linha_dre: pai.linha_dre,
+        subtipo: 'Débito', parent_id: pai.id, codigo, ativo: true, user_id: user?.id,
       })
       if (error) { alert('Erro: ' + error.message); setSalvando(false); return }
     }
@@ -181,10 +162,8 @@ export default function PlanoDeContasPage() {
             <h2 className="text-xl font-bold text-gray-800">Plano de Contas</h2>
             <p className="text-xs text-gray-400 mt-1">Home / Configurações / Plano de Contas</p>
           </div>
-          <button
-            onClick={() => { resetForm(); setMostrarForm(true) }}
-            className="text-sm bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
-          >
+          <button onClick={() => { resetForm(); setMostrarForm(true) }}
+            className="text-sm bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
             Nova Subconta
           </button>
         </div>
@@ -192,57 +171,33 @@ export default function PlanoDeContasPage() {
         {mostrarForm && (
           <div className="bg-white rounded-xl border border-gray-200 mb-6">
             <div className="px-6 py-4 border-b border-gray-100">
-              <h3 className="text-base font-semibold text-gray-800">
-                {editando ? 'Editar Subconta' : 'Nova Subconta'}
-              </h3>
-              <p className="text-xs text-gray-400 mt-0.5">
-                Home / Configurações / Plano de Contas / {editando ? 'Editar' : 'Cadastro'}
-              </p>
+              <h3 className="text-base font-semibold text-gray-800">{editando ? 'Editar Subconta' : 'Nova Subconta'}</h3>
             </div>
-
             <form onSubmit={salvar} className="px-6 py-5">
               <div className="grid grid-cols-4 gap-3 mb-5 items-end">
                 <div>
                   <label className="block text-xs font-medium text-gray-500 mb-1">Código Estruturado</label>
-                  <input
-                    type="text"
+                  <input type="text"
                     value={editando ? editando.codigo : (form.categoria ? gerarProximoCodigo(form.categoria) : '')}
                     disabled
                     className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-500 text-center"
-                    placeholder="Auto"
-                  />
+                    placeholder="Auto" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">
-                    Categoria <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={form.categoria}
-                    onChange={e => setForm({...form, categoria: e.target.value})}
-                    className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 ${!form.categoria ? 'border-red-300 bg-red-50' : 'border-gray-300'}`}
-                    required
-                  >
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Categoria <span className="text-red-500">*</span></label>
+                  <select value={form.categoria} onChange={e => setForm({...form, categoria: e.target.value})}
+                    className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 ${!form.categoria ? 'border-red-300 bg-red-50' : 'border-gray-300'}`} required>
                     <option value="">Selecione...</option>
-                    {categoriasPai.map(c => (
-                      <option key={c.id} value={c.id}>{c.codigo} — {c.nome}</option>
-                    ))}
+                    {categoriasPai.map(c => <option key={c.id} value={c.id}>{c.codigo} — {c.nome}</option>)}
                   </select>
                 </div>
                 <div className="col-span-2">
-                  <label className="block text-xs font-medium text-gray-500 mb-1">
-                    Descrição <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={form.descricao}
-                    onChange={e => setForm({...form, descricao: e.target.value})}
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Descrição <span className="text-red-500">*</span></label>
+                  <input type="text" value={form.descricao} onChange={e => setForm({...form, descricao: e.target.value})}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                    placeholder="Nome da subconta"
-                    required
-                  />
+                    placeholder="Nome da subconta" required />
                 </div>
               </div>
-
               <div className="flex gap-3">
                 <button type="submit" disabled={salvando}
                   className="bg-green-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50">
@@ -267,7 +222,6 @@ export default function PlanoDeContasPage() {
           <div className="flex items-center gap-2">
             <select value={porPagina} onChange={e => setPorPagina(parseInt(e.target.value))}
               className="border border-gray-300 rounded px-2 py-1 text-sm">
-              <option value={10}>10</option>
               <option value={25}>25</option>
               <option value={50}>50</option>
               <option value={100}>100</option>
@@ -287,7 +241,7 @@ export default function PlanoDeContasPage() {
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50">
                   <th className="text-left px-4 py-3 font-medium text-gray-600 w-16">Código</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600 w-32">Cód. Estruturado</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600 w-36">Cód. Estruturado</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Descrição</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Categoria</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600 w-24">Ações</th>
@@ -295,19 +249,14 @@ export default function PlanoDeContasPage() {
               </thead>
               <tbody>
                 {filtradas.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="px-4 py-12 text-center text-gray-400">
-                      Nenhuma subconta cadastrada.
-                    </td>
-                  </tr>
+                  <tr><td colSpan={5} className="px-4 py-12 text-center text-gray-400">Nenhuma subconta cadastrada.</td></tr>
                 ) : (
                   filtradas.map((sub, idx) => {
                     const pai = categoriasPai.find(c => c.id === sub.parent_id)
-                    const codigoSimples = getCodigoSimples(sub, subcontas)
                     const isEven = idx % 2 === 0
                     return (
                       <tr key={sub.id} className={`border-b border-gray-100 hover:bg-gray-50 ${isEven ? 'bg-white' : 'bg-gray-50/30'}`}>
-                        <td className="px-4 py-3 font-medium text-gray-700 text-center">{codigoSimples}</td>
+                        <td className="px-4 py-3 font-medium text-gray-700 text-center">{idx + 1}</td>
                         <td className="px-4 py-3 text-gray-600 font-mono text-xs">{sub.codigo}</td>
                         <td className="px-4 py-3 text-gray-800">{sub.nome}</td>
                         <td className="px-4 py-3">
@@ -317,9 +266,7 @@ export default function PlanoDeContasPage() {
                             </span>
                           ) : '-'}
                         </td>
-                        <td className="px-4 py-3">
-                          <BotaoAcoes sub={sub} />
-                        </td>
+                        <td className="px-4 py-3"><BotaoAcoes sub={sub} /></td>
                       </tr>
                     )
                   })
