@@ -199,7 +199,7 @@ export default function ConfiguracoesPage() {
             </div>
           </div>
 
-          {/* Configuracoes financeiras */}
+          {/* Configurações financeiras */}
           <div className="bg-white rounded-xl border border-gray-200 p-6">
             <h3 className="text-base font-semibold text-gray-800 mb-4">Configurações financeiras</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
